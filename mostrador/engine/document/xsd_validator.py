@@ -49,7 +49,8 @@ _SCHEMA_DIR = Path(__file__).parent / "schemas" / "ooxml"
 
 _NS_MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 _NS_WML = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-_NS_CONTENT_TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
+_NS_MATH = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+_NS_CONTENT_TYPES ="http://schemas.openxmlformats.org/package/2006/content-types"
 _NS_RELATIONSHIPS = "http://schemas.openxmlformats.org/package/2006/relationships"
 
 _MAX_ERRORS_PER_PART = 20
@@ -84,7 +85,7 @@ def validate_docx_against_xsd(docx_path: Path) -> list[str]:
                 continue  # parte fuera del alcance (tema, docProps, ...)
 
             if schema_name == "wml":
-                root = _apply_mce(root)
+                root = _normalize_word_deviations(_apply_mce(root))
             errors.extend(_validate_part(name, root, _load_schema(schema_name)))
 
     return errors
@@ -140,6 +141,26 @@ def _apply_mce(root: etree._Element) -> etree._Element:
             if namespace in ignorable or namespace == _NS_MC:
                 del element.attrib[attribute]
 
+    return root
+
+
+def _normalize_word_deviations(root: etree._Element) -> etree._Element:
+    """
+    Corrige desviaciones conocidas de Word respecto al XSD, para no rechazar
+    contenido de ecuaciones que Mostrador preserva sin modificar (spec §7).
+    Solo actua sobre la copia que se valida; el archivo de salida no cambia.
+
+    * En `m:r`, Word escribe `w:rPr` ANTES de `m:rPr`; el XSD exige el orden
+      inverso (verificado con un .docx de ecuaciones generado por Word, cuyo
+      original ya falla la validacion).
+    """
+    math_run = f"{{{_NS_MATH}}}r"
+    math_run_props = f"{{{_NS_MATH}}}rPr"
+    for run in root.iter(math_run):
+        props = run.find(math_run_props)
+        if props is not None and run.index(props) > 0:
+            run.remove(props)
+            run.insert(0, props)
     return root
 
 

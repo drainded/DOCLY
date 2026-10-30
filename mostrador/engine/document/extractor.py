@@ -99,6 +99,13 @@ _TAG_OMATH     = qn("m:oMath")          # ecuacion OMML
 _TAG_OMATH_R   = qn("m:oMathPara")      # parrafo de ecuacion
 _TAG_DRAWING   = qn("w:drawing")        # contenedor de imagen inline
 _TAG_PICT      = qn("w:pict")           # imagen en formato legado (VML)
+_TAG_OBJECT    = qn("w:object")         # objeto OLE embebido
+_TAG_ALTERNATE = "{http://schemas.openxmlformats.org/markup-compatibility/2006}AlternateContent"
+_TAG_FALLBACK  = "{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback"
+_TAG_TXBX      = qn("w:txbxContent")    # contenido de un cuadro de texto
+
+# Subarboles cuyo texto NO es texto propio del parrafo (imagenes, cuadros de texto)
+_EMBEDDED_TAGS = frozenset({_TAG_DRAWING, _TAG_PICT, _TAG_OBJECT, _TAG_ALTERNATE})
 
 # Firma de los primeros 8 bytes de un contenedor OLE/CFB (Compound File
 # Binary). Un .docx cifrado con contrasena ("Encrypt with Password" de
@@ -417,8 +424,11 @@ def _extract_from_paragraph(
 
     Un parrafo puede dar lugar a:
     - 0 bloques: si esta vacio (sin texto ni imagenes ni ecuaciones)
-    - 1 bloque IMAGE si contiene un dibujo/imagen inline
-    - 1 bloque EQUATION si contiene una ecuacion OMML
+    - 1 bloque EQUATION si contiene una ecuacion OMML (se conserva el
+      parrafo completo, texto incluido, como XML crudo)
+    - Si contiene un dibujo/imagen: un bloque de texto con el texto propio
+      del parrafo (si lo hay), el bloque IMAGE y un bloque de texto por cada
+      parrafo de sus cuadros de texto (no se pierde texto, seccion 6)
     - 1 bloque de texto (BODY, HEADING*, LIST_ITEM, etc.) con el texto del parrafo
     """
     # 1. ¿Contiene ecuacion OMML?
@@ -427,20 +437,58 @@ def _extract_from_paragraph(
 
     # 2. ¿Contiene imagen inline?
     if _has_image(p_elem):
-        return [_make_image_block(p_elem, start_index, style_map)]
+        return _extract_from_image_paragraph(p_elem, start_index, style_map)
 
     # 3. Parrafo de texto
     text = _collect_text(p_elem)
     if not text:
         return []   # parrafo vacio — ignorar
 
+    return [_make_text_block(p_elem, start_index, text, style_map)]
+
+
+def _extract_from_image_paragraph(
+    p_elem: etree._Element,
+    start_index: int,
+    style_map: dict[str, str],
+) -> list[SemanticBlock]:
+    """
+    Bloques de un parrafo con imagen: texto propio -> imagen -> texto de los
+    cuadros de texto. En un `mc:AlternateContent` el cuadro de texto aparece
+    dos veces (Choice moderno y Fallback VML); solo se toma el de Choice.
+    """
+    blocks: list[SemanticBlock] = []
+
+    own_text = _collect_text(p_elem, skip_embedded=True)
+    if own_text:
+        blocks.append(_make_text_block(p_elem, start_index + len(blocks), own_text, style_map))
+
+    blocks.append(_make_image_block(p_elem, start_index + len(blocks), style_map))
+
+    for txbx in p_elem.iter(_TAG_TXBX):
+        if any(ancestor.tag == _TAG_FALLBACK for ancestor in txbx.iterancestors()):
+            continue
+        for inner in txbx.iter(qn("w:p")):
+            text = _collect_text(inner)
+            if text:
+                blocks.append(_make_text_block(inner, start_index + len(blocks), text, style_map))
+
+    return blocks
+
+
+def _make_text_block(
+    p_elem: etree._Element,
+    index: int,
+    text: str,
+    style_map: dict[str, str],
+) -> SemanticBlock:
     style_name = _get_style_name(p_elem, style_map)
     role = _style_to_role(style_name)
     heading_level = _heading_level_from_role(role)
     list_ordered, list_depth = _list_info(p_elem)
 
-    block = SemanticBlock(
-        index=start_index,
+    return SemanticBlock(
+        index=index,
         text=text,
         role=role,
         heading_level=heading_level,
@@ -450,7 +498,6 @@ def _extract_from_paragraph(
         has_conflicting_style=_is_conflicting_style(style_name),
         raw_xml=None,    # solo se captura para ecuaciones e imagenes
     )
-    return [block]
 
 
 def _has_equation(p_elem: etree._Element) -> bool:
@@ -600,19 +647,30 @@ def _cell_grid_span(cell: etree._Element) -> int:
 # Helpers de XML / texto
 # ===========================================================================
 
-def _collect_text(elem: etree._Element) -> str:
+def _collect_text(elem: etree._Element, skip_embedded: bool = False) -> str:
     """
     Extrae el texto plano de un elemento XML recorriendo todos sus
     descendientes <w:t>, respetando <w:br> como salto de linea.
+
+    Con `skip_embedded=True` se ignora el texto dentro de dibujos, imagenes
+    VML, objetos y `mc:AlternateContent` (p. ej. cuadros de texto): queda solo
+    el texto propio del parrafo.
     """
     parts: list[str] = []
-    for child in elem.iter():
-        if child.tag == qn("w:t"):
-            parts.append(child.text or "")
-        elif child.tag == qn("w:br"):
-            parts.append("\n")
-        elif child.tag == qn("w:tab"):
-            parts.append("\t")
+
+    def walk(node: etree._Element) -> None:
+        for child in node:
+            if skip_embedded and child.tag in _EMBEDDED_TAGS:
+                continue
+            if child.tag == qn("w:t"):
+                parts.append(child.text or "")
+            elif child.tag == qn("w:br"):
+                parts.append("\n")
+            elif child.tag == qn("w:tab"):
+                parts.append("\t")
+            walk(child)
+
+    walk(elem)
     return "".join(parts).strip()
 
 

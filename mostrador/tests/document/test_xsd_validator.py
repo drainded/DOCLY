@@ -68,6 +68,24 @@ def test_builder_output_with_embedded_image_is_schema_valid(tmp_path):
     assert validate_docx_against_xsd(out) == []
 
 
+def test_word_ordering_of_math_run_properties_is_tolerated(tmp_path):
+    # Word escribe w:rPr antes de m:rPr (el XSD exige lo contrario); lo
+    # verificamos con un .docx de ecuaciones real. No debe contar como error.
+    omml = (
+        '<w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+        'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><m:oMath><m:r>'
+        '<w:rPr><w:i/></w:rPr><m:rPr><m:sty m:val="p"/></m:rPr><m:t>x</m:t>'
+        '</m:r></m:oMath></w:p>'
+    )
+    out = tmp_path / "out.docx"
+    build_docx(
+        blocks=[SemanticBlock(index=0, role=SemanticRole.EQUATION, raw_xml=omml)],
+        style=FormatStyle.APA, output_path=out,
+    )
+
+    assert validate_docx_against_xsd(out) == []
+
+
 def test_unknown_element_in_document_body_is_reported(tmp_path):
     valid = tmp_path / "valid.docx"
     build_docx(blocks=_blocks(), style=FormatStyle.APA, output_path=valid)

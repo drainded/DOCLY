@@ -14,3 +14,7 @@ output/
 
 # Documentos procesados por la webapp (datos de usuario / pruebas)
 storage/
+
+# Corridas manuales con documentos reales (tools/run_real.py)
+real_runs/
+documentos prueba/

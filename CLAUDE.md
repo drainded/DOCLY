@@ -22,6 +22,10 @@ cd mostrador
 ../.venv/Scripts/python.exe -m pytest tests/formatting/test_docx_builder.py -q
 ../.venv/Scripts/python.exe -m pytest tests/classification/test_fallback.py -k "rate_limit" -q
 
+# corrida manual con documentos reales (desde mostrador/). HACE LLAMADAS REALES a Gemini:
+# el contenido de los documentos sale hacia ese servicio. Informe en ../real_runs/<fecha>/report.md
+../.venv/Scripts/python.exe tools/run_real.py "../documentos prueba" --styles apa
+
 # servidor web (desde la raíz; es lo que usa .claude/launch.json)
 .venv/Scripts/python.exe -m uvicorn --app-dir mostrador webapp.main:app --port 8000
 ```
