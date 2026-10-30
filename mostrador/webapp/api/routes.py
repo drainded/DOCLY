@@ -42,6 +42,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import re
 import tempfile
 from pathlib import Path
 
@@ -56,6 +57,8 @@ from webapp.config import MissingAPIKeyError, load_processing_config
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+_DEFAULT_FILENAME = "documento.docx"
 
 # Seccion 9: 1 documento a la vez, sin cola paralela.
 _PROCESSING_LOCK = asyncio.Lock()
@@ -104,6 +107,21 @@ def _build_config(style: FormatStyle) -> ProcessingConfig:
     return config
 
 
+def _safe_filename(raw: str | None) -> str:
+    """
+    Nombre de archivo del cliente reducido a su ultimo componente.
+
+    El cliente controla `filename`: un valor como "../../x.docx" o
+    "C:\\x.docx" haria que `staged_dir / filename` apunte fuera del directorio
+    temporal (se escribiria ahi y luego `_cleanup_staged_file` lo borraria).
+    Se corta en ambos separadores ("/" y "\\") sin importar el sistema operativo.
+    """
+    name = re.split(r"[\\/]", raw or "")[-1].strip()
+    if name in ("", ".", "..") or ":" in name:
+        return _DEFAULT_FILENAME
+    return name
+
+
 def _parse_style(style: str) -> FormatStyle:
     try:
         return FormatStyle(style)
@@ -120,7 +138,7 @@ def _parse_style(style: str) -> FormatStyle:
 async def upload_document(file: UploadFile = File(...), style: str = Form(...)) -> dict:
     """Sube un documento y lo procesa (seccion 2)."""
     format_style = _parse_style(style)
-    original_filename = file.filename or "documento.docx"
+    original_filename = _safe_filename(file.filename)
     config = _build_config(format_style)
 
     staged_dir = Path(tempfile.mkdtemp(prefix="mostrador_upload_"))

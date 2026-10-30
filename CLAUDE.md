@@ -30,7 +30,7 @@ cd mostrador
 .venv/Scripts/python.exe -m uvicorn --app-dir mostrador webapp.main:app --port 8000
 ```
 
-No hay linter ni formateador configurados. Hay tests unitarios por módulo y `tests/test_pipeline_e2e.py` (pipeline completo con `.docx` generados por `tests/fixtures/docx_factory.py`); no existen tests de la webapp.
+No hay linter ni formateador configurados. Hay tests unitarios por módulo y `tests/test_pipeline_e2e.py` (pipeline completo con `.docx` generados por `tests/fixtures/docx_factory.py`); `tests/webapi/` prueba la capa HTTP con `TestClient` y un pipeline simulado (el directorio no puede llamarse `tests/webapp`: chocaría con el paquete real `webapp`).
 
 ## Configuración y entorno
 
