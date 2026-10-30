@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mostrador</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Mostrador</h1>
+    <p>Formatea tu documento en APA, IEEE o Vancouver.</p>
+  </header>
+
+  <main>
+    <section>
+      <h2>Subir documento</h2>
+      <form id="upload-form">
+        <div class="field">
+          <label for="file-input">Documento (.docx o .doc, hasta 50 MB)</label>
+          <input id="file-input" type="file" name="file" accept=".docx,.doc" required />
+        </div>
+        <div class="field">
+          <label for="style-select">Formato</label>
+          <select id="style-select" name="style">
+            <option value="apa">APA (7.a edicion)</option>
+            <option value="ieee">IEEE</option>
+            <option value="vancouver">Vancouver</option>
+          </select>
+        </div>
+        <button type="submit" class="primary" id="submit-btn">Procesar documento</button>
+      </form>
+
+      <div id="status-box"></div>
+
+      <div id="conflict-dialog">
+        <p>
+          El documento tiene estilos propios que pueden entrar en conflicto con el
+          formato seleccionado. ¿Deseas sobrescribirlos?
+        </p>
+        <div class="actions">
+          <button class="primary" id="confirm-overwrite-btn">Sobrescribir y continuar</button>
+          <button class="secondary" id="cancel-overwrite-btn">Cancelar</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Documentos procesados</h2>
+      <ul class="doc-list" id="doc-list"></ul>
+      <p class="empty-state" id="empty-state">Todavia no has procesado ningun documento.</p>
+    </section>
+  </main>
+
+  <div id="preview-modal">
+    <button class="close" id="close-preview-btn" aria-label="Cerrar">&times;</button>
+    <img id="preview-image" alt="Vista previa del documento" />
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

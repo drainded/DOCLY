@@ -1,0 +1,16 @@
+# Secretos y configuracion local
+.env
+
+# Entorno virtual
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Salidas del pipeline (documentos generados, previews)
+output/
+
+# Documentos procesados por la webapp (datos de usuario / pruebas)
+storage/
