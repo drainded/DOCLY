@@ -58,6 +58,7 @@ Limitaciones conocidas de v1 (documentadas, no bugs)
 from __future__ import annotations
 
 import logging
+import re
 from collections import defaultdict
 from dataclasses import replace
 from io import BytesIO
@@ -99,7 +100,9 @@ _HEADING_ROLE_BY_LEVEL: dict[int, SemanticRole] = {
 _LIST_STYLE_BY_DEPTH_ORDERED = {0: "List Number", 1: "List Number 2", 2: "List Number 3"}
 _LIST_STYLE_BY_DEPTH_UNORDERED = {0: "List Bullet", 1: "List Bullet 2", 2: "List Bullet 3"}
 
+_EXISTING_REFERENCE_NUMBER = re.compile(r"^\s*(?:\[\d+\]\s*|\(\d+\)\s*|\d+[.)]\s+)")
 _IMAGE_MAX_WIDTH_INCHES = 6.0
+_COVER_IMAGE_MAX_WIDTH_INCHES = 3.0  # logo de portada: no debe desplazar el resto de la portada
 
 _ROMAN_NUMERAL_TABLE = [
     (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
@@ -154,11 +157,11 @@ def build_docx(
         style_names = _register_content_styles(document, template)
         toc_style_names = _register_toc_entry_styles(document, template)
 
-        cover_blocks = [b for b in blocks if b.is_cover_field()]
-        remaining = [b for b in blocks if not b.is_cover_field()]
+        cover_blocks = [b for b in blocks if b.belongs_to_cover()]
+        remaining = [b for b in blocks if not b.belongs_to_cover()]
         heading_blocks = [b for b in remaining if b.is_heading()]
 
-        _add_cover_page(document, cover_blocks, template, style_names)
+        _add_cover_page(document, cover_blocks, template, style_names, source_docx_path)
         _add_toc_section(document, heading_blocks, template, toc_style_names, language)
         _add_body(document, remaining, template, style_names, language, source_docx_path)
 
@@ -262,11 +265,18 @@ def _add_cover_page(
     cover_blocks: list[SemanticBlock],
     template: TemplateSpec,
     style_names: dict[SemanticRole, str],
+    source_docx_path: Path | None,
 ) -> None:
     if not cover_blocks:
         return
 
+    source_document: docx.Document | None = None
     for block in cover_blocks:
+        if block.role == SemanticRole.IMAGE:
+            if source_document is None and source_docx_path is not None:
+                source_document = docx.Document(str(source_docx_path))
+            _add_image(document, block, source_document, _COVER_IMAGE_MAX_WIDTH_INCHES)
+            continue
         paragraph = document.add_paragraph(block.text, style=style_names[block.role])
         if block.role == SemanticRole.COVER_TITLE:
             # Acento de portada (seccion 4, punto 1): linea bajo el titulo.
@@ -384,10 +394,15 @@ def _with_heading_prefix(text: str, numbering: HeadingNumbering, counter: int) -
 
 def _with_reference_prefix(text: str, numbering: ReferenceNumbering, counter: int) -> str:
     if numbering == ReferenceNumbering.BRACKETS:
-        return f"[{counter}] {text}"
+        return f"[{counter}] {_strip_reference_number(text)}"
     if numbering == ReferenceNumbering.DECIMAL_DOT:
-        return f"{counter}. {text}"
+        return f"{counter}. {_strip_reference_number(text)}"
     return text
+
+
+def _strip_reference_number(text: str) -> str:
+    """Quita el numero de lista que ya traia la referencia ("[3] ", "3. ", "3) ", "(3) ")."""
+    return _EXISTING_REFERENCE_NUMBER.sub("", text, count=1)
 
 
 def _int_to_roman(number: int) -> str:
@@ -506,7 +521,12 @@ def _add_equation_paragraph(document: docx.Document, block: SemanticBlock) -> No
 # Imagenes embebidas (seccion 7 — ver docstring del modulo)
 # ===========================================================================
 
-def _add_image(document: docx.Document, block: SemanticBlock, source_document) -> None:
+def _add_image(
+    document: docx.Document,
+    block: SemanticBlock,
+    source_document,
+    max_width_inches: float = _IMAGE_MAX_WIDTH_INCHES,
+) -> None:
     if source_document is None or not block.image_rId:
         logger.warning(
             "Bloque IMAGE sin documento fuente o sin image_rId (index=%d) — se omite.",
@@ -528,6 +548,6 @@ def _add_image(document: docx.Document, block: SemanticBlock, source_document) -
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = paragraph.add_run()
     try:
-        run.add_picture(BytesIO(image_bytes), width=Inches(_IMAGE_MAX_WIDTH_INCHES))
+        run.add_picture(BytesIO(image_bytes), width=Inches(max_width_inches))
     except Exception as exc:  # noqa: BLE001 — formato de imagen no reconocido por python-docx
         logger.warning("No se pudo insertar la imagen del bloque %d: %s", block.index, exc)

@@ -101,6 +101,42 @@ class TestBuildDocxBasicContent:
         # El titulo de seccion de referencias debe insertarse una sola vez
         assert texts.count("Referencias") == 1
 
+    @pytest.mark.parametrize("existing_number", ["[1] ", "1. ", "1) ", "(1) ", "[1]"])
+    def test_reference_with_its_own_number_is_not_numbered_twice(self, tmp_path, existing_number):
+        blocks = [_block(0, SemanticRole.REFERENCE, f"{existing_number}Smith, J. (2020).")]
+        out = tmp_path / "out.docx"
+
+        build_docx(blocks=blocks, style=FormatStyle.IEEE, output_path=out)
+
+        texts = [p.text for p in docx.Document(out).paragraphs]
+        assert "[1] Smith, J. (2020)." in texts
+
+    def test_reference_starting_with_a_decimal_number_keeps_it(self, tmp_path):
+        blocks = [_block(0, SemanticRole.REFERENCE, "3.5 mm audio standard.")]
+        out = tmp_path / "out.docx"
+
+        build_docx(blocks=blocks, style=FormatStyle.VANCOUVER, output_path=out)
+
+        assert "1. 3.5 mm audio standard." in [p.text for p in docx.Document(out).paragraphs]
+
+    def test_cover_logo_stays_on_cover_before_the_toc(self, tmp_path):
+        source_path, rid = _make_source_docx_with_image(tmp_path)
+        blocks = [
+            _block(0, SemanticRole.IMAGE, image_rId=rid, in_cover=True),
+            _block(1, SemanticRole.COVER_TITLE, "Mi trabajo"),
+            _block(2, SemanticRole.HEADING1, "Introduccion", heading_level=1),
+            _block(3, SemanticRole.BODY, "Cuerpo."),
+        ]
+        out = tmp_path / "out.docx"
+
+        build_docx(blocks=blocks, style=FormatStyle.APA, output_path=out, source_docx_path=source_path)
+
+        paragraphs = docx.Document(out).paragraphs
+        has_image = [bool(p._p.xpath(".//w:drawing")) for p in paragraphs]
+        texts = [p.text for p in paragraphs]
+        assert has_image.index(True) < texts.index("Mi trabajo") < texts.index("Índice")
+        assert sum(has_image) == 1
+
     def test_cover_fields_rendered_before_page_break(self, tmp_path):
         blocks = [
             _block(0, SemanticRole.COVER_TITLE, "Mi trabajo"),

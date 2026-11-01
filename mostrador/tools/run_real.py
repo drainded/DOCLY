@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import re
 import sys
 import time
 from datetime import datetime
@@ -123,12 +124,16 @@ def _run_one(doc: Path, style: FormatStyle, out_dir: Path, overwrite: bool) -> d
     return row
 
 
+# Los numeros de referencia ("[3] ", "3. ") los reescribe la plantilla: no cuentan como texto perdido.
+_LEADING_LIST_NUMBER = re.compile(r"^(?:\[\d+\]\s*|\(\d+\)\s*|\d+[.)]\s+)")
+
+
 def _document_texts(path: Path) -> list[str]:
     document = docx.Document(path)
     texts = [p.text for p in document.paragraphs]
     for table in document.tables:
         texts.extend(cell.text for row in table.rows for cell in row.cells)
-    return [" ".join(text.split()) for text in texts if text.strip()]
+    return [_LEADING_LIST_NUMBER.sub("", " ".join(text.split())) for text in texts if text.strip()]
 
 
 def _missing_text(original: Path, output: Path) -> list[str]:

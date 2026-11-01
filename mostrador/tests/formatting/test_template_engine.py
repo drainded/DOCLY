@@ -54,6 +54,29 @@ class TestCoverFieldReordering:
         # el resto conserva su orden de lectura original
         assert [b.role for b in result[3:]] == [SemanticRole.BODY, SemanticRole.HEADING1]
 
+    def test_images_inside_the_cover_zone_travel_with_the_cover(self):
+        blocks = [
+            _block(0, SemanticRole.IMAGE),                     # logo antes del titulo
+            _block(1, SemanticRole.COVER_TITLE),
+            _block(2, SemanticRole.IMAGE),                     # entre campos de portada
+            _block(3, SemanticRole.COVER_DATE),
+            _block(4, SemanticRole.HEADING1, heading_level=1),
+            _block(5, SemanticRole.IMAGE),                     # figura del cuerpo
+        ]
+
+        result = template_engine.apply_template(blocks, FormatStyle.APA)
+
+        assert [b.index for b in result] == [0, 2, 1, 3, 4, 5]
+        assert [b.in_cover for b in result] == [True, True, False, False, False, False]
+
+    def test_images_without_a_cover_are_left_in_place(self):
+        blocks = [_block(0, SemanticRole.IMAGE), _block(1, SemanticRole.BODY)]
+
+        result = template_engine.apply_template(blocks, FormatStyle.APA)
+
+        assert [b.index for b in result] == [0, 1]
+        assert not any(b.in_cover for b in result)
+
     def test_missing_optional_cover_field_does_not_error(self):
         # Sin COVER_COURSE ni COVER_INSTITUTION: no debe fallar (son opcionales)
         blocks = [_block(0, SemanticRole.COVER_TITLE), _block(1, SemanticRole.BODY)]

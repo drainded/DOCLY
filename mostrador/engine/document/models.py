@@ -145,6 +145,11 @@ class SemanticBlock:
     # --- Confianza de la clasificacion (informativo) ---
     classification_confidence: float | None = None
 
+    # --- Posicion en el documento de salida (lo asigna template_engine, Paso 4) ---
+    # True para bloques que no son un campo de portada pero pertenecen a ella
+    # (p. ej. el logo de la institucion): el builder los coloca en la portada.
+    in_cover: bool = False
+
     def is_heading(self) -> bool:
         return self.role in (
             SemanticRole.HEADING1,
@@ -161,6 +166,9 @@ class SemanticBlock:
             SemanticRole.COVER_DATE,
             SemanticRole.COVER_COURSE,
         )
+
+    def belongs_to_cover(self) -> bool:
+        return self.is_cover_field() or self.in_cover
 
     def must_preserve_raw(self) -> bool:
         """True si el bloque debe reinsertarse desde raw_xml sin modificacion (§7)."""

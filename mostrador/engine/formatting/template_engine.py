@@ -17,7 +17,8 @@ Responsabilidades
 * Reordenar los bloques de portada (§4, punto 2: "estructura de portada...
   definida como layout fijo") al frente del documento, en el orden fijo
   que dicta TEMPLATES[style].cover_field_order — independientemente del
-  orden en que aparecian en el documento original. El resto del documento
+  orden en que aparecian en el documento original. Las imagenes de la zona
+  de portada (p. ej. el logo) viajan con ella. El resto del documento
   conserva su orden de lectura original.
 
 Lo que este modulo NO hace
@@ -127,4 +128,28 @@ def _reorder_cover_fields(
     for role in cover_field_order:
         ordered_cover.extend(cover_by_role.get(role, []))
 
-    return ordered_cover + rest
+    if not ordered_cover:
+        return rest
+
+    cover_images = _extract_cover_images(rest, blocks)
+    return cover_images + ordered_cover + [b for b in rest if not b.in_cover]
+
+
+def _extract_cover_images(rest: list[SemanticBlock], blocks: list[SemanticBlock]) -> list[SemanticBlock]:
+    """
+    Marca (`in_cover`) las imagenes que estan dentro de la zona de portada
+    del documento original: desde el inicio hasta el ultimo campo de portada,
+    siempre antes del primer heading. Asi el logo de la institucion se queda
+    en la portada en vez de caer detras del indice.
+    """
+    first_heading = next((i for i, b in enumerate(blocks) if b.is_heading()), len(blocks))
+    last_cover_field = max((i for i, b in enumerate(blocks) if b.is_cover_field()), default=-1)
+    cover_end = min(last_cover_field, first_heading - 1)
+
+    images = [
+        block for i, block in enumerate(blocks)
+        if i <= cover_end and block.role == SemanticRole.IMAGE
+    ]
+    for image in images:
+        image.in_cover = True
+    return images
