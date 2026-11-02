@@ -137,7 +137,7 @@ def _cover_fonts(accent_hex: str, title_all_caps: bool = False) -> dict[Semantic
         ),
         SemanticRole.COVER_AUTHOR: FontSpec(
             name="Times New Roman", size_pt=13, alignment=Alignment.CENTER,
-            space_before_pt=24, space_after_pt=4,
+            space_after_pt=4,
         ),
         SemanticRole.COVER_INSTITUTION: FontSpec(
             name="Times New Roman", size_pt=12, italic=True, alignment=Alignment.CENTER,

@@ -115,6 +115,8 @@ def _reorder_cover_fields(
     bloques (ej. ningun COVER_COURSE detectado) simplemente no aporta
     ningun bloque — no es un error (§4: el curso es un campo opcional).
     """
+    _attach_labels_to_their_values(blocks)
+
     cover_by_role: dict[SemanticRole, list[SemanticBlock]] = defaultdict(list)
     rest: list[SemanticBlock] = []
 
@@ -133,6 +135,18 @@ def _reorder_cover_fields(
 
     cover_images = _extract_cover_images(rest, blocks)
     return cover_images + ordered_cover + [b for b in rest if not b.in_cover]
+
+
+def _attach_labels_to_their_values(blocks: list[SemanticBlock]) -> None:
+    """
+    Una etiqueta de portada ("Alumnos:", "Materia:") toma el rol del campo de
+    portada que la sigue, para que el reordenado por rol no la separe de su
+    valor cuando la clasificacion les dio roles distintos.
+    """
+    cover_fields = [b for b in blocks if b.is_cover_field()]
+    for index in range(len(cover_fields) - 2, -1, -1):  # de atras adelante: encadena etiquetas seguidas
+        if cover_fields[index].text.strip().endswith(":"):
+            cover_fields[index].role = cover_fields[index + 1].role
 
 
 def _extract_cover_images(rest: list[SemanticBlock], blocks: list[SemanticBlock]) -> list[SemanticBlock]:

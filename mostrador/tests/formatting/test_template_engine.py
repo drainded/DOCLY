@@ -69,6 +69,18 @@ class TestCoverFieldReordering:
         assert [b.index for b in result] == [0, 2, 1, 3, 4, 5]
         assert [b.in_cover for b in result] == [True, True, False, False, False, False]
 
+    def test_label_follows_the_role_of_its_value(self):
+        blocks = [
+            SemanticBlock(index=0, text="Materia:", role=SemanticRole.COVER_AUTHOR),
+            SemanticBlock(index=1, text="Taller II", role=SemanticRole.COVER_COURSE),
+            SemanticBlock(index=2, text="Alumno X", role=SemanticRole.COVER_AUTHOR),
+            SemanticBlock(index=3, text="Fecha", role=SemanticRole.COVER_DATE),
+        ]
+
+        result = template_engine.apply_template(blocks, FormatStyle.APA)
+
+        assert [b.text for b in result] == ["Alumno X", "Materia:", "Taller II", "Fecha"]
+
     def test_images_without_a_cover_are_left_in_place(self):
         blocks = [_block(0, SemanticRole.IMAGE), _block(1, SemanticRole.BODY)]
 

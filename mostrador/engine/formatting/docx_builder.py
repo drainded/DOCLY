@@ -102,7 +102,11 @@ _LIST_STYLE_BY_DEPTH_UNORDERED = {0: "List Bullet", 1: "List Bullet 2", 2: "List
 
 _EXISTING_REFERENCE_NUMBER = re.compile(r"^\s*(?:\[\d+\]\s*|\(\d+\)\s*|\d+[.)]\s+)")
 _IMAGE_MAX_WIDTH_INCHES = 6.0
-_COVER_IMAGE_MAX_WIDTH_INCHES = 3.0  # logo de portada: no debe desplazar el resto de la portada
+_COVER_IMAGE_MAX_WIDTH_INCHES = 2.2  # logo de portada: la portada debe caber en una pagina
+_COVER_GROUPED_ROLES = (
+    SemanticRole.COVER_AUTHOR, SemanticRole.COVER_INSTITUTION, SemanticRole.COVER_COURSE,
+)
+_COVER_GROUP_GAP_PT = 18.0  # espacio antes del primer bloque de cada grupo de campos de portada
 
 _ROMAN_NUMERAL_TABLE = [
     (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
@@ -271,6 +275,7 @@ def _add_cover_page(
         return
 
     source_document: docx.Document | None = None
+    seen_roles: set[SemanticRole] = set()
     for block in cover_blocks:
         if block.role == SemanticRole.IMAGE:
             if source_document is None and source_docx_path is not None:
@@ -278,6 +283,9 @@ def _add_cover_page(
             _add_image(document, block, source_document, _COVER_IMAGE_MAX_WIDTH_INCHES)
             continue
         paragraph = document.add_paragraph(block.text, style=style_names[block.role])
+        if block.role not in seen_roles and block.role in _COVER_GROUPED_ROLES:
+            paragraph.paragraph_format.space_before = Pt(_COVER_GROUP_GAP_PT)
+        seen_roles.add(block.role)
         if block.role == SemanticRole.COVER_TITLE:
             # Acento de portada (seccion 4, punto 1): linea bajo el titulo.
             _add_bottom_border(paragraph, template.separator_line.color_hex, template.separator_line.weight_pt)
