@@ -609,7 +609,7 @@ def _extract_from_table(
         col_index = 0
         for cell in row.findall(qn("w:tc")):
             span = _cell_grid_span(cell)
-            text = _collect_text(cell)
+            text = _collect_cell_text(cell)
             if text:
                 blocks.append(SemanticBlock(
                     index=index,
@@ -624,6 +624,12 @@ def _extract_from_table(
             col_index += span
 
     return blocks
+
+
+def _collect_cell_text(cell: etree._Element) -> str:
+    """Texto de una celda: sus parrafos separados por salto de linea (si no, las palabras se pegan)."""
+    parts = [_collect_text(child) for child in cell if child.tag in (qn("w:p"), qn("w:tbl"))]
+    return "\n".join(text for text in parts if text)
 
 
 def _cell_grid_span(cell: etree._Element) -> int:

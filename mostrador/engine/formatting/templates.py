@@ -27,7 +27,7 @@ bibliografico completo, fuera de alcance de v1 (seccion 8).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 
 from engine.document.models import DocumentLanguage, FormatStyle, SemanticRole
@@ -56,6 +56,12 @@ class ReferenceNumbering(str, Enum):
     NONE = "none"                # sangria francesa, sin numero (convencion APA)
     BRACKETS = "brackets"        # "[1] "  (convencion IEEE)
     DECIMAL_DOT = "decimal_dot"  # "1. "   (convencion Vancouver)
+
+
+class TableStyle(str, Enum):
+    """Aspecto de las tablas (fijo por template)."""
+    SHADED_GRID = "shaded_grid"  # cuadricula con fila de encabezado sombreada (IEEE, Vancouver)
+    APA_RULES = "apa_rules"      # solo lineas horizontales: sobre el encabezado, bajo el encabezado y al pie
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +127,14 @@ class TemplateSpec:
     heading1_numbering: HeadingNumbering
     reference_numbering: ReferenceNumbering
 
+    # Maquetacion global (valores por defecto = comportamiento de IEEE/Vancouver).
+    include_toc: bool = True               # indice generado por codigo tras la portada
+    separator_lines: bool = True           # linea bajo cada heading1 y bajo el titulo de portada
+    table_style: TableStyle = TableStyle.SHADED_GRID
+    page_numbers: bool = False             # numero de pagina arriba a la derecha
+    cover_group_gap_pt: float = 18.0       # hueco entre grupos de campos de portada
+    apa_layout: bool = False               # estructura APA 7 (portada por caso, resumen, titulo repetido, saltos)
+
 
 # ---------------------------------------------------------------------------
 # Helper: paleta compartida de portada/tabla derivada del accent_color_hex
@@ -147,10 +161,24 @@ def _cover_fonts(accent_hex: str, title_all_caps: bool = False) -> dict[Semantic
             name="Times New Roman", size_pt=12, alignment=Alignment.CENTER,
             space_after_pt=4,
         ),
+        SemanticRole.COVER_INSTRUCTOR: FontSpec(
+            name="Times New Roman", size_pt=12, alignment=Alignment.CENTER,
+            space_after_pt=4,
+        ),
         SemanticRole.COVER_DATE: FontSpec(
             name="Times New Roman", size_pt=12, alignment=Alignment.CENTER,
             space_before_pt=24,
         ),
+    }
+
+
+def _extra_role_fonts(body: FontSpec) -> dict[SemanticRole, FontSpec]:
+    """Roles de articulo (resumen, palabras clave, nota, anotacion) derivados del cuerpo."""
+    return {
+        SemanticRole.ABSTRACT: replace(body, first_line_indent_pt=0.0),
+        SemanticRole.KEYWORDS: body,
+        SemanticRole.AUTHOR_NOTE: body,
+        SemanticRole.ANNOTATION: replace(body, first_line_indent_pt=0.0, left_indent_pt=28.0),
     }
 
 
@@ -159,67 +187,66 @@ _COVER_FIELD_ORDER = (
     SemanticRole.COVER_AUTHOR,
     SemanticRole.COVER_INSTITUTION,
     SemanticRole.COVER_COURSE,
+    SemanticRole.COVER_INSTRUCTOR,
     SemanticRole.COVER_DATE,
 )
 
 
 # ---------------------------------------------------------------------------
-# APA (7.a edicion): doble espacio, sin numeracion de encabezados,
-# referencias con sangria francesa y sin numerar (orden alfabetico se
-# asume ya presente en el documento de entrada — Mostrador no reordena
-# contenido bibliografico, ver docstring del modulo).
+# APA (7.a edicion), segun los trabajos de ejemplo oficiales de APA: todo en
+# negro, sin indice ni lineas decorativas, doble espacio, texto alineado a la
+# izquierda con sangria de primera linea de 0.5", encabezados de niveles 1-4,
+# numero de pagina arriba a la derecha, tablas solo con lineas horizontales y
+# referencias con sangria francesa sin numerar (el orden alfabetico se asume
+# ya presente en el documento de entrada — Mostrador no reordena contenido
+# bibliografico, ver docstring del modulo). La portada y las secciones
+# (resumen, nota del autor, titulo repetido, saltos de pagina) dependen del
+# tipo de documento y se resuelven en template_engine.py (`apa_layout`).
 # ---------------------------------------------------------------------------
 
-_APA_ACCENT = "2E4057"
+_APA_FONT = "Times New Roman"
+_APA_HALF_INCH_PT = 36.0
+
+
+def _apa_font(**overrides) -> FontSpec:
+    """FontSpec base de APA 7: 12 pt, negro, doble espacio, sin espacio entre parrafos."""
+    base = dict(name=_APA_FONT, size_pt=12, line_spacing=2.0)
+    base.update(overrides)
+    return FontSpec(**base)
+
+
+_APA_BODY = _apa_font(first_line_indent_pt=_APA_HALF_INCH_PT)
+_APA_COVER_LINE = _apa_font(alignment=Alignment.CENTER)
 
 _APA_TEMPLATE = TemplateSpec(
     style=FormatStyle.APA,
     display_name="APA (7.a edicion)",
-    accent_color_hex=_APA_ACCENT,
-    separator_line=SeparatorLineSpec(color_hex="A9BCD0", weight_pt=1.0),
+    accent_color_hex="000000",
+    separator_line=SeparatorLineSpec(color_hex="000000", weight_pt=0.5),  # no se usa (separator_lines=False)
     fonts={
-        **_cover_fonts(_APA_ACCENT),
-        SemanticRole.HEADING1: FontSpec(
-            name="Times New Roman", size_pt=14, bold=True, color_hex=_APA_ACCENT,
-            alignment=Alignment.CENTER, space_before_pt=24, space_after_pt=12, line_spacing=2.0,
+        SemanticRole.COVER_TITLE: _apa_font(bold=True, alignment=Alignment.CENTER, space_before_pt=72),
+        SemanticRole.COVER_AUTHOR: _APA_COVER_LINE,
+        SemanticRole.COVER_INSTITUTION: _APA_COVER_LINE,
+        SemanticRole.COVER_COURSE: _APA_COVER_LINE,
+        SemanticRole.COVER_INSTRUCTOR: _APA_COVER_LINE,
+        SemanticRole.COVER_DATE: _APA_COVER_LINE,
+        SemanticRole.HEADING1: _apa_font(bold=True, alignment=Alignment.CENTER),
+        SemanticRole.HEADING2: _apa_font(bold=True),
+        SemanticRole.HEADING3: _apa_font(bold=True, italic=True),
+        SemanticRole.HEADING4: _apa_font(bold=True, first_line_indent_pt=_APA_HALF_INCH_PT),
+        SemanticRole.BODY: _APA_BODY,
+        SemanticRole.LIST_ITEM: _apa_font(),
+        SemanticRole.BLOCKQUOTE: _apa_font(left_indent_pt=_APA_HALF_INCH_PT),
+        SemanticRole.CAPTION: _apa_font(),
+        SemanticRole.REFERENCE: _apa_font(
+            left_indent_pt=_APA_HALF_INCH_PT, first_line_indent_pt=-_APA_HALF_INCH_PT,
         ),
-        SemanticRole.HEADING2: FontSpec(
-            name="Times New Roman", size_pt=12, bold=True,
-            alignment=Alignment.LEFT, space_before_pt=18, space_after_pt=8, line_spacing=2.0,
-        ),
-        SemanticRole.HEADING3: FontSpec(
-            name="Times New Roman", size_pt=12, bold=True, italic=True,
-            alignment=Alignment.LEFT, space_before_pt=12, space_after_pt=6, line_spacing=2.0,
-        ),
-        SemanticRole.HEADING4: FontSpec(
-            name="Times New Roman", size_pt=12, bold=True, italic=True,
-            alignment=Alignment.LEFT, first_line_indent_pt=18, space_before_pt=6, line_spacing=2.0,
-        ),
-        SemanticRole.BODY: FontSpec(
-            name="Times New Roman", size_pt=12, alignment=Alignment.JUSTIFY,
-            first_line_indent_pt=18, line_spacing=2.0, space_after_pt=0,
-        ),
-        SemanticRole.LIST_ITEM: FontSpec(
-            name="Times New Roman", size_pt=12, line_spacing=2.0,
-        ),
-        SemanticRole.BLOCKQUOTE: FontSpec(
-            name="Times New Roman", size_pt=12, italic=True,
-            left_indent_pt=36, line_spacing=2.0,
-        ),
-        SemanticRole.CAPTION: FontSpec(
-            name="Times New Roman", size_pt=10, italic=True, alignment=Alignment.CENTER,
-        ),
-        SemanticRole.REFERENCE: FontSpec(
-            name="Times New Roman", size_pt=12, left_indent_pt=36,
-            first_line_indent_pt=-36, line_spacing=2.0, space_after_pt=12,
-        ),
-        SemanticRole.TABLE_HEADER: FontSpec(
-            name="Times New Roman", size_pt=11, bold=True, color_hex="FFFFFF",
-            alignment=Alignment.CENTER,
-        ),
-        SemanticRole.TABLE_CELL: FontSpec(
-            name="Times New Roman", size_pt=11,
-        ),
+        SemanticRole.ABSTRACT: _apa_font(),
+        SemanticRole.KEYWORDS: _APA_BODY,
+        SemanticRole.AUTHOR_NOTE: _APA_BODY,
+        SemanticRole.ANNOTATION: _apa_font(left_indent_pt=_APA_HALF_INCH_PT),
+        SemanticRole.TABLE_HEADER: _apa_font(bold=True, line_spacing=None),
+        SemanticRole.TABLE_CELL: _apa_font(line_spacing=None),
     },
     cover_field_order=_COVER_FIELD_ORDER,
     toc_title={
@@ -233,6 +260,12 @@ _APA_TEMPLATE = TemplateSpec(
     toc_entry_font_scale=0.85,
     heading1_numbering=HeadingNumbering.NONE,
     reference_numbering=ReferenceNumbering.NONE,
+    include_toc=False,
+    separator_lines=False,
+    table_style=TableStyle.APA_RULES,
+    page_numbers=True,
+    cover_group_gap_pt=0.0,
+    apa_layout=True,
 )
 
 
@@ -366,6 +399,12 @@ _VANCOUVER_TEMPLATE = TemplateSpec(
     heading1_numbering=HeadingNumbering.DECIMAL,
     reference_numbering=ReferenceNumbering.DECIMAL_DOT,
 )
+
+
+# IEEE y Vancouver no distinguen resumen/nota/anotacion: heredan el cuerpo.
+for _template in (_IEEE_TEMPLATE, _VANCOUVER_TEMPLATE):
+    for _role, _font in _extra_role_fonts(_template.fonts[SemanticRole.BODY]).items():
+        _template.fonts.setdefault(_role, _font)
 
 
 # ---------------------------------------------------------------------------

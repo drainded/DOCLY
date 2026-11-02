@@ -66,20 +66,22 @@ from pathlib import Path
 
 import docx
 from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 from lxml import etree
 
 from engine.core.exceptions import DocxBuildError
-from engine.document.models import DocumentLanguage, FormatStyle, SemanticBlock, SemanticRole
+from engine.document.models import DocumentLanguage, DocumentType, FormatStyle, SemanticBlock, SemanticRole
+from engine.formatting import section_titles
 from engine.formatting.templates import (
     TEMPLATES,
     Alignment,
     FontSpec,
     HeadingNumbering,
     ReferenceNumbering,
+    TableStyle,
     TemplateSpec,
 )
 
@@ -105,8 +107,10 @@ _IMAGE_MAX_WIDTH_INCHES = 6.0
 _COVER_IMAGE_MAX_WIDTH_INCHES = 2.2  # logo de portada: la portada debe caber en una pagina
 _COVER_GROUPED_ROLES = (
     SemanticRole.COVER_AUTHOR, SemanticRole.COVER_INSTITUTION, SemanticRole.COVER_COURSE,
+    SemanticRole.COVER_INSTRUCTOR,
 )
-_COVER_GROUP_GAP_PT = 18.0  # espacio antes del primer bloque de cada grupo de campos de portada
+_RUNNING_HEAD_MAX_CHARS = 50  # APA 7: encabezado de pagina de un articulo profesional
+_KEYWORDS_LABEL = re.compile(r"^\s*(keywords?|palabras clave)\s*:", re.IGNORECASE)
 
 _ROMAN_NUMERAL_TABLE = [
     (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
@@ -125,6 +129,7 @@ def build_docx(
     output_path: Path,
     source_docx_path: Path | None = None,
     language: DocumentLanguage = DocumentLanguage.UNKNOWN,
+    document_type: DocumentType | None = None,
 ) -> None:
     """
     Construye el .docx final aplicando TEMPLATES[style] sobre `blocks`.
@@ -147,6 +152,9 @@ def build_docx(
     language:
         Idioma detectado del documento (seccion 7), usado para el titulo
         del indice y de la seccion de referencias.
+    document_type:
+        Caso del documento (Paso 3). En APA decide el encabezado de pagina
+        (solo articulos profesionales) y si se antepone "Referencias".
 
     Raises
     ------
@@ -158,6 +166,8 @@ def build_docx(
     try:
         document = docx.Document()
         _fix_template_settings(document)
+        if template.apa_layout:
+            _set_apa_page_setup(document)
         style_names = _register_content_styles(document, template)
         toc_style_names = _register_toc_entry_styles(document, template)
 
@@ -165,9 +175,12 @@ def build_docx(
         remaining = [b for b in blocks if not b.belongs_to_cover()]
         heading_blocks = [b for b in remaining if b.is_heading()]
 
+        if template.page_numbers:
+            _add_page_number_header(document, template, _running_head(cover_blocks, document_type))
         _add_cover_page(document, cover_blocks, template, style_names, source_docx_path)
-        _add_toc_section(document, heading_blocks, template, toc_style_names, language)
-        _add_body(document, remaining, template, style_names, language, source_docx_path)
+        if template.include_toc:
+            _add_toc_section(document, heading_blocks, template, toc_style_names, language)
+        _add_body(document, remaining, template, style_names, language, source_docx_path, document_type)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         document.save(str(output_path))
@@ -186,6 +199,52 @@ def _fix_template_settings(document: docx.Document) -> None:
     zoom = document.settings.element.find(qn("w:zoom"))
     if zoom is not None and zoom.get(qn("w:percent")) is None:
         zoom.set(qn("w:percent"), "100")
+
+
+def _set_apa_page_setup(document: docx.Document) -> None:
+    """APA 7: carta, margenes de 1 pulgada por los cuatro lados."""
+    for section in document.sections:
+        section.page_width, section.page_height = Inches(8.5), Inches(11)
+        section.left_margin = section.right_margin = Inches(1)
+        section.top_margin = section.bottom_margin = Inches(1)
+        section.header_distance = Inches(0.5)
+
+
+def _running_head(cover_blocks: list[SemanticBlock], document_type: DocumentType | None) -> str | None:
+    """Titulo corto en mayusculas para el encabezado de un articulo profesional (max. 50 caracteres)."""
+    if document_type != DocumentType.PROFESSIONAL_PAPER:
+        return None
+    title = next((b.text for b in cover_blocks if b.role == SemanticRole.COVER_TITLE), "")
+    title = " ".join(title.split()).upper()
+    if len(title) <= _RUNNING_HEAD_MAX_CHARS:
+        return title or None
+    return title[:_RUNNING_HEAD_MAX_CHARS].rsplit(" ", 1)[0]
+
+
+def _add_page_number_header(document: docx.Document, template: TemplateSpec, running_head: str | None) -> None:
+    """Numero de pagina arriba a la derecha, con el titulo corto a la izquierda si lo hay."""
+    section = document.sections[0]
+    font_spec = template.fonts[SemanticRole.BODY]
+
+    header_style = document.styles["Header"]
+    header_style.paragraph_format.tab_stops.clear_all()  # el estilo trae tabuladores centro/derecha propios
+    paragraph = section.header.paragraphs[0]
+    paragraph.style = header_style
+    paragraph.paragraph_format.tab_stops.add_tab_stop(
+        section.page_width - section.left_margin - section.right_margin, WD_TAB_ALIGNMENT.RIGHT,
+    )
+
+    if running_head:
+        _apply_font_spec_to_run(paragraph.add_run(running_head), font_spec)
+    _apply_font_spec_to_run(paragraph.add_run("\t"), font_spec)
+
+    field = OxmlElement("w:fldSimple")
+    field.set(qn("w:instr"), "PAGE")
+    page_run = docx.text.run.Run(OxmlElement("w:r"), paragraph)
+    page_run.text = "1"
+    _apply_font_spec_to_run(page_run, font_spec)
+    field.append(page_run._r)
+    paragraph._p.append(field)
 
 
 # ===========================================================================
@@ -283,14 +342,15 @@ def _add_cover_page(
             _add_image(document, block, source_document, _COVER_IMAGE_MAX_WIDTH_INCHES)
             continue
         paragraph = document.add_paragraph(block.text, style=style_names[block.role])
-        if block.role not in seen_roles and block.role in _COVER_GROUPED_ROLES:
-            paragraph.paragraph_format.space_before = Pt(_COVER_GROUP_GAP_PT)
+        if block.role not in seen_roles and block.role in _COVER_GROUPED_ROLES and template.cover_group_gap_pt:
+            paragraph.paragraph_format.space_before = Pt(template.cover_group_gap_pt)
         seen_roles.add(block.role)
-        if block.role == SemanticRole.COVER_TITLE:
+        if block.role == SemanticRole.COVER_TITLE and template.separator_lines:
             # Acento de portada (seccion 4, punto 1): linea bajo el titulo.
             _add_bottom_border(paragraph, template.separator_line.color_hex, template.separator_line.weight_pt)
 
-    document.add_page_break()
+    if not template.apa_layout:  # en APA el salto lo marca el primer bloque que sigue (`page_break_before`)
+        document.add_page_break()
 
 
 # ===========================================================================
@@ -329,6 +389,7 @@ def _add_body(
     style_names: dict[SemanticRole, str],
     language: DocumentLanguage,
     source_docx_path: Path | None,
+    document_type: DocumentType | None = None,
 ) -> None:
     tables_by_id: dict[str, list[SemanticBlock]] = defaultdict(list)
     for block in blocks:
@@ -340,8 +401,11 @@ def _add_body(
     reference_counter = 0
     reference_section_started = False
     source_document: docx.Document | None = None
+    previous: SemanticBlock | None = None
 
     for block in blocks:
+        previous_block, previous = previous, block
+
         if block.table_id is not None:
             if block.table_id in processed_table_ids:
                 continue  # ya se reconstruyo esta tabla completa
@@ -361,14 +425,17 @@ def _add_body(
 
         if block.role == SemanticRole.REFERENCE:
             if not reference_section_started:
-                title = template.reference_section_title.get(
-                    language, template.reference_section_title[DocumentLanguage.UNKNOWN]
-                )
-                document.add_paragraph(title, style=style_names[SemanticRole.HEADING1])
                 reference_section_started = True
+                if _needs_reference_title(previous_block, document_type):
+                    title = template.reference_section_title.get(
+                        language, template.reference_section_title[DocumentLanguage.UNKNOWN]
+                    )
+                    heading = document.add_paragraph(title, style=style_names[SemanticRole.HEADING1])
+                    heading.paragraph_format.page_break_before = block.page_break_before
+                    block.page_break_before = False
             reference_counter += 1
             text = _with_reference_prefix(block.text, template.reference_numbering, reference_counter)
-            document.add_paragraph(text, style=style_names[SemanticRole.REFERENCE])
+            _new_paragraph(document, text, style_names[SemanticRole.REFERENCE], block)
             continue
 
         if block.role == SemanticRole.LIST_ITEM:
@@ -376,20 +443,76 @@ def _add_body(
             continue
 
         if block.role == SemanticRole.HEADING1:
-            heading1_counter += 1
-            text = _with_heading_prefix(block.text, template.heading1_numbering, heading1_counter)
-            paragraph = document.add_paragraph(text, style=style_names[SemanticRole.HEADING1])
-            _add_bottom_border(paragraph, template.separator_line.color_hex, template.separator_line.weight_pt)
+            text = block.text
+            if not block.synthetic:
+                heading1_counter += 1
+                text = _with_heading_prefix(block.text, template.heading1_numbering, heading1_counter)
+            paragraph = _new_paragraph(document, text, style_names[SemanticRole.HEADING1], block)
+            if template.separator_lines:
+                _add_bottom_border(paragraph, template.separator_line.color_hex, template.separator_line.weight_pt)
+            continue
+
+        if block.role == SemanticRole.KEYWORDS:
+            _add_keywords(document, block, style_names[SemanticRole.KEYWORDS])
+            continue
+
+        if block.role == SemanticRole.CAPTION and template.apa_layout:
+            _add_apa_caption(document, block, style_names[SemanticRole.CAPTION])
             continue
 
         style_name = style_names.get(block.role)
         if style_name is None:
             # Rol UNKNOWN u otro no cubierto por el template: se preserva
             # tal cual, sin decoracion (ver SemanticRole.UNKNOWN docstring).
-            document.add_paragraph(block.text)
+            _new_paragraph(document, block.text, None, block)
             continue
 
-        document.add_paragraph(block.text, style=style_name)
+        text = block.text.lstrip() if block.role == SemanticRole.ANNOTATION else block.text
+        _new_paragraph(document, text, style_name, block)
+
+
+def _new_paragraph(document: docx.Document, text: str, style_name: str | None, block: SemanticBlock):
+    paragraph = document.add_paragraph(text, style=style_name)
+    if block.page_break_before:
+        paragraph.paragraph_format.page_break_before = True
+    return paragraph
+
+
+def _needs_reference_title(previous: SemanticBlock | None, document_type: DocumentType | None) -> bool:
+    """No se antepone "Referencias" si el documento ya trae ese titulo, ni en una bibliografia anotada."""
+    if document_type == DocumentType.ANNOTATED_BIBLIOGRAPHY:
+        return False
+    return not (
+        previous is not None and previous.role == SemanticRole.HEADING1
+        and section_titles.is_reference_title(previous.text)
+    )
+
+
+def _add_keywords(document: docx.Document, block: SemanticBlock, style_name: str) -> None:
+    """Linea de palabras clave: la etiqueta ("Keywords:") va en cursiva, el resto normal."""
+    text = block.text.strip()
+    paragraph = document.add_paragraph(style=style_name)
+    if block.page_break_before:
+        paragraph.paragraph_format.page_break_before = True
+    label = _KEYWORDS_LABEL.match(text)
+    if label is None:
+        paragraph.add_run(text)
+        return
+    paragraph.add_run(text[: label.end()]).italic = True
+    paragraph.add_run(text[label.end():])
+
+
+def _add_apa_caption(document: docx.Document, block: SemanticBlock, style_name: str) -> None:
+    """Rotulo APA: "Table 1" en negrita; el titulo que lo sigue, en cursiva. Siempre junto a lo que sigue."""
+    paragraph = document.add_paragraph(style=style_name)
+    if block.page_break_before:
+        paragraph.paragraph_format.page_break_before = True
+    run = paragraph.add_run(block.text.strip())
+    if section_titles.is_caption_label(block.text):
+        run.bold = True
+    else:
+        run.italic = True
+    paragraph.paragraph_format.keep_with_next = True
 
 
 def _with_heading_prefix(text: str, numbering: HeadingNumbering, counter: int) -> str:
@@ -443,7 +566,11 @@ def _build_table(document: docx.Document, table_blocks: list[SemanticBlock], tem
     max_row = max(b.row_index for b in table_blocks if b.row_index is not None)
     max_col = max(b.col_index for b in table_blocks if b.col_index is not None)
     table = document.add_table(rows=max_row + 1, cols=max_col + 1)
-    table.style = "Table Grid"
+    apa_rules = template.table_style == TableStyle.APA_RULES
+    if apa_rules:
+        _set_apa_table_borders(table)
+    else:
+        table.style = "Table Grid"
 
     header_bg_hex = _lighten_hex(template.accent_color_hex, factor=0.75)
 
@@ -460,7 +587,45 @@ def _build_table(document: docx.Document, table_blocks: list[SemanticBlock], tem
         paragraph.alignment = _ALIGNMENT_MAP[font_spec.alignment]
 
         if is_header:
-            _set_cell_background(cell, header_bg_hex)
+            if apa_rules:
+                _set_cell_bottom_border(cell)
+            else:
+                _set_cell_background(cell, header_bg_hex)
+
+
+def _set_apa_table_borders(table) -> None:
+    """Tabla APA: solo lineas horizontales arriba y abajo (la del encabezado se pone por celda)."""
+    tbl_pr = table._tbl.tblPr
+    borders = OxmlElement("w:tblBorders")
+    for edge in ("top", "bottom"):
+        element = OxmlElement(f"w:{edge}")
+        element.set(qn("w:val"), "single")
+        element.set(qn("w:sz"), "4")
+        element.set(qn("w:space"), "0")
+        element.set(qn("w:color"), "000000")
+        borders.append(element)
+    _insert_before_first(tbl_pr, borders, ("shd", "tblLayout", "tblCellMar", "tblLook", "tblCaption", "tblDescription"))
+
+
+def _set_cell_bottom_border(cell) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    borders = OxmlElement("w:tcBorders")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "4")
+    bottom.set(qn("w:space"), "0")
+    bottom.set(qn("w:color"), "000000")
+    borders.append(bottom)
+    _insert_before_first(tc_pr, borders, ("shd", "noWrap", "tcMar", "textDirection", "tcFitText", "vAlign", "hideMark"))
+
+
+def _insert_before_first(parent, element, later_tags: tuple[str, ...]) -> None:
+    """Inserta `element` respetando el orden de hijos del esquema: antes del primero de `later_tags`."""
+    for child in parent:
+        if etree.QName(child).localname in later_tags:
+            child.addprevious(element)
+            return
+    parent.append(element)
 
 
 def _lighten_hex(hex_color: str, factor: float) -> str:

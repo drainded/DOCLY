@@ -125,7 +125,7 @@ class TestPipelineIntegration:
             lambda blocks, api_key, model, language: blocks,
         )
 
-        def build_invalid(blocks, style, output_path, source_docx_path=None, language=None):
+        def build_invalid(blocks, style, output_path, source_docx_path=None, language=None, document_type=None):
             document = docx.Document()
             document.add_paragraph("texto")
             document.save(output_path)

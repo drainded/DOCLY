@@ -15,9 +15,11 @@ Contrato de respuesta esperado (JSON)
 Un objeto (no una lista en el nivel superior — algunos proveedores en modo
 "json_object", como Groq/OpenAI, exigen un objeto raiz) con la forma::
 
-    {"blocks": [{"index": 0, "role": "heading1"}, {"index": 1, "role": "body"}, ...]}
+    {"document_type": "student_paper",
+     "blocks": [{"index": 0, "role": "heading1"}, {"index": 1, "role": "body"}, ...]}
 
-Un item puede incluir opcionalmente "confidence" (float 0-1).
+Un item puede incluir opcionalmente "confidence" (float 0-1). "document_type"
+es opcional: si falta o no es valido, el documento se trata como "other".
 
 Invariante del sistema (seccion 5 — principio arquitectonico clave):
     El modelo SOLO asigna `role`. Nunca decide estilo visual (color,
@@ -30,7 +32,7 @@ import json
 import logging
 
 from engine.core.exceptions import InvalidClassificationResponseError
-from engine.document.models import DocumentLanguage, SemanticBlock, SemanticRole
+from engine.document.models import DocumentLanguage, DocumentType, SemanticBlock, SemanticRole
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,16 @@ _ROLES_EXCLUDED_FROM_CLASSIFICATION: frozenset[SemanticRole] = frozenset({
 })
 
 _VALID_ROLE_VALUES: frozenset[str] = frozenset(role.value for role in SemanticRole)
+_VALID_DOCUMENT_TYPES: frozenset[str] = frozenset(t.value for t in DocumentType)
+
+
+class ClassifiedBlocks(list):
+    """
+    Lista de SemanticBlock que ademas lleva el tipo de documento etiquetado
+    por la IA. Es una `list` normal para quien solo necesita los bloques.
+    """
+
+    document_type: DocumentType | None = None
 
 _ROLES_FOR_PROMPT = [
     role.value for role in SemanticRole if role not in _ROLES_EXCLUDED_FROM_CLASSIFICATION
@@ -75,14 +87,26 @@ Reglas:
 - NUNCA inventes un rol fuera de la lista anterior.
 - NUNCA modifiques, resumas ni traduzcas el texto: solo lo clasificas.
 - NUNCA decidas color, tipografia, ni maquetacion — eso no es tu trabajo, lo determina codigo deterministico despues.
-- cover_title / cover_author / cover_institution / cover_date / cover_course: usalos SOLO para los campos de portada (titulo del trabajo, autor, institucion, fecha, curso) que tipicamente aparecen antes del cuerpo del documento.
+- cover_title / cover_author / cover_institution / cover_date / cover_course / cover_instructor: usalos SOLO para los campos de portada (titulo del trabajo, autor o autores, institucion o afiliaciones, fecha, curso, profesor o tutor) que tipicamente aparecen antes del cuerpo del documento. El titulo que se REPITE al comienzo del texto principal NO es cover_title: es heading1 (o body si no es un titulo).
+- En un articulo (professional_paper) lo primero del documento es el titulo (si ocupa varias lineas, todas son cover_title), luego los nombres de los autores (cover_author) y despues las afiliaciones, normalmente numeradas (cover_institution). "Author Note" y "Abstract" son heading1.
+- abstract: cada parrafo del resumen (el encabezado "Abstract"/"Resumen" en si es heading1).
+- keywords: la linea de palabras clave ("Keywords: ..." / "Palabras clave: ...").
+- author_note: cada parrafo de la nota del autor (el encabezado "Author Note"/"Nota del autor" en si es heading1).
+- annotation: en una bibliografia anotada, cada parrafo de anotacion que sigue a una entrada (la entrada es reference).
+- caption: SOLO lineas de rotulo de tabla o figura ("Table 1", "Figura 2", y el titulo que las acompana).
 - reference: usalo para cada entrada individual de la bibliografia / lista de referencias (normalmente al final del documento).
 - heading1..heading4: titulos de seccion, segun su nivel jerarquico real (no te fies ciegamente del rol preliminar si el texto sugiere otro nivel).
 - Si un bloque no encaja claramente en ningun rol especial, usa "body".
 - Idioma detectado del documento: {language}.
 
+Ademas, indica el tipo de documento completo (campo "document_type"), usando exactamente uno de estos valores:
+- student_paper: trabajo de curso/estudiante (portada con autor, institucion, curso, profesor y fecha; tambien ensayos, tesis o reportes escolares).
+- professional_paper: articulo academico o profesional (autores con afiliaciones, nota del autor, resumen, palabras clave).
+- annotated_bibliography: bibliografia anotada (lista de referencias, cada una con su anotacion).
+- other: cualquier otro documento.
+
 Responde EXCLUSIVAMENTE con un JSON valido, sin texto adicional antes ni despues, con esta forma exacta:
-{{"blocks": [{{"index": <numero entero>, "role": "<rol>"}}, ...]}}
+{{"document_type": "<tipo>", "blocks": [{{"index": <numero entero>, "role": "<rol>"}}, ...]}}
 Debes incluir un objeto por cada bloque de entrada (mismo "index"), en cualquier orden.
 
 Bloques de entrada:
@@ -186,7 +210,13 @@ def parse_and_apply(
         block.role = SemanticRole(role_value)
         block.heading_level = _HEADING_LEVEL_BY_ROLE.get(block.role)
 
-    return all_blocks
+    result = ClassifiedBlocks(all_blocks)
+    declared_type = parsed.get("document_type")
+    if isinstance(declared_type, str) and declared_type in _VALID_DOCUMENT_TYPES:
+        result.document_type = DocumentType(declared_type)
+    else:
+        logger.warning("Tipo de documento ausente o invalido en la respuesta (%r).", declared_type)
+    return result
 
 
 def _strip_code_fence(text: str) -> str:

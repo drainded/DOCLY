@@ -39,8 +39,9 @@ import logging
 from collections import defaultdict
 
 from engine.core.exceptions import TemplateApplicationError, TemplateNotFoundError
-from engine.document.models import FormatStyle, SemanticBlock, SemanticRole
-from engine.formatting.templates import TEMPLATES
+from engine.document.models import DocumentType, FormatStyle, SemanticBlock, SemanticRole
+from engine.formatting import section_titles
+from engine.formatting.templates import TEMPLATES, TemplateSpec
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,11 @@ _EXPECTED_HEADING_LEVEL: dict[SemanticRole, int] = {
 }
 
 
-def apply_template(blocks: list[SemanticBlock], style: FormatStyle) -> list[SemanticBlock]:
+def apply_template(
+    blocks: list[SemanticBlock],
+    style: FormatStyle,
+    document_type: DocumentType | None = None,
+) -> list[SemanticBlock]:
     """
     Aplica el template `style` sobre los bloques ya clasificados (Paso 3).
 
@@ -62,6 +67,9 @@ def apply_template(blocks: list[SemanticBlock], style: FormatStyle) -> list[Sema
         Bloques clasificados por Gemini/Groq, en orden de lectura.
     style:
         Estilo de formato solicitado por el usuario (APA/IEEE/Vancouver).
+    document_type:
+        Caso del documento etiquetado por la IA (solo lo usan los templates
+        con `apa_layout`; None se trata como OTHER).
 
     Returns
     -------
@@ -85,7 +93,13 @@ def apply_template(blocks: list[SemanticBlock], style: FormatStyle) -> list[Sema
     for block in blocks:
         _validate_block(block)
 
-    return _reorder_cover_fields(blocks, template.cover_field_order)
+    if template.apa_layout:
+        _infer_missing_cover(blocks, document_type or DocumentType.OTHER)
+        _ensure_cover_title(blocks)
+    ordered = _reorder_cover_fields(blocks, template.cover_field_order)
+    if template.apa_layout:
+        return _apply_apa_layout(ordered, document_type or DocumentType.OTHER)
+    return ordered
 
 
 def _validate_block(block: SemanticBlock) -> None:
@@ -178,3 +192,218 @@ def _extract_cover_images(rest: list[SemanticBlock], blocks: list[SemanticBlock]
     for image in images:
         image.in_cover = True
     return images
+
+
+# ===========================================================================
+# Maquetacion APA 7 (template.apa_layout)
+# ===========================================================================
+
+_MAX_CAPTION_TITLE_CHARS = 250
+
+
+def _apply_apa_layout(blocks: list[SemanticBlock], document_type: DocumentType) -> list[SemanticBlock]:
+    """
+    Estructura de un trabajo APA 7, decidida por codigo a partir del tipo de
+    documento y de los roles ya clasificados:
+
+    * portada (campos `cover_*`) en su propia pagina; en un articulo
+      profesional la nota del autor se queda en esa misma pagina;
+    * resumen (y palabras clave) en pagina propia;
+    * el titulo se repite en negrita y centrado al comienzo del texto;
+    * referencias, apendices en pagina nueva;
+    * rotulos de tabla/figura ("Table 1" + titulo) reconocidos como CAPTION.
+
+    Devuelve la lista con las marcas `page_break_before` y los bloques
+    sinteticos necesarios; no cambia el texto de ningun bloque existente.
+    """
+    cover_size = 0
+    while cover_size < len(blocks) and blocks[cover_size].belongs_to_cover():
+        cover_size += 1
+    cover, body = blocks[:cover_size], list(blocks[cover_size:])
+
+    _promote_caption_labels(body)
+
+    front_end = _front_matter_end(body)
+    title_blocks = [b for b in cover if b.role == SemanticRole.COVER_TITLE]
+    had_front_content = bool(cover) or front_end > 0
+
+    if front_end < len(body):
+        first_main = body[front_end]
+        if title_blocks and not _is_repeated_title(first_main, title_blocks[0]):
+            body[front_end:front_end] = [
+                SemanticBlock(
+                    index=-1, text=title.text, role=SemanticRole.HEADING1, heading_level=1,
+                    synthetic=True, page_break_before=had_front_content and number == 0,
+                )
+                for number, title in enumerate(title_blocks)
+            ]
+        else:
+            first_main.page_break_before = had_front_content
+
+    _break_before_sections(body, cover, document_type)
+    return cover + body
+
+
+_MAX_COVER_LINES = 5            # autor, institucion, curso, profesor, fecha
+_MAX_COVER_LINE_CHARS = 200
+
+_STUDENT_COVER_ROLES = (
+    SemanticRole.COVER_AUTHOR, SemanticRole.COVER_INSTITUTION, SemanticRole.COVER_COURSE,
+    SemanticRole.COVER_INSTRUCTOR, SemanticRole.COVER_DATE,
+)
+
+
+def _infer_missing_cover(blocks: list[SemanticBlock], document_type: DocumentType) -> None:
+    """
+    Red de seguridad cuando la IA no marco ningun campo de portada: en un
+    trabajo de estudiante o un articulo, las lineas cortas que siguen al titulo
+    y preceden a "Author Note" / "Abstract" son la portada. Los roles se
+    asignan por posicion (autor, afiliaciones / institucion, curso, profesor,
+    fecha). Si la zona no tiene esa forma, no se toca nada.
+    """
+    if document_type not in (DocumentType.STUDENT_PAPER, DocumentType.PROFESSIONAL_PAPER):
+        return
+    if any(b.is_cover_field() for b in blocks):
+        return
+    boundary = next((
+        i for i, b in enumerate(blocks)
+        if b.role == SemanticRole.HEADING1
+        and (section_titles.is_abstract_title(b.text) or section_titles.is_author_note_title(b.text))
+    ), None)
+    if boundary is None:
+        return
+
+    region = blocks[:boundary]
+    title_count = 0
+    while title_count < len(region) and region[title_count].role == SemanticRole.HEADING1:
+        title_count += 1
+    lines = region[title_count:]
+    if title_count == 0 or not lines or len(lines) > _MAX_COVER_LINES * 3:
+        return
+    if any(
+        b.role not in (SemanticRole.BODY, SemanticRole.UNKNOWN) or b.table_id is not None
+        or len(b.text) > _MAX_COVER_LINE_CHARS
+        for b in lines
+    ):
+        return
+
+    for title in region[:title_count]:
+        title.role, title.heading_level = SemanticRole.COVER_TITLE, None
+    if document_type == DocumentType.PROFESSIONAL_PAPER:
+        roles = [SemanticRole.COVER_AUTHOR] + [SemanticRole.COVER_INSTITUTION] * (len(lines) - 1)
+    elif len(lines) <= len(_STUDENT_COVER_ROLES):
+        roles = list(_STUDENT_COVER_ROLES[: len(lines)])
+    else:
+        return
+    for line, role in zip(lines, roles):
+        line.role = role
+
+
+def _ensure_cover_title(blocks: list[SemanticBlock]) -> None:
+    """
+    Si hay campos de portada pero la IA dejo el titulo como encabezado (caso
+    frecuente en articulos), el primer heading1 anterior al ultimo campo de
+    portada pasa a ser el titulo de la portada.
+    """
+    last_cover_field = max((i for i, b in enumerate(blocks) if b.is_cover_field()), default=-1)
+    if last_cover_field < 0 or any(b.role == SemanticRole.COVER_TITLE for b in blocks):
+        return
+    candidates = iter(blocks[:last_cover_field])
+    for block in candidates:
+        if block.role == SemanticRole.HEADING1 and not (
+            section_titles.is_abstract_title(block.text) or section_titles.is_author_note_title(block.text)
+        ):
+            block.role, block.heading_level = SemanticRole.COVER_TITLE, None
+            # un titulo de varias lineas llega como varios heading1 seguidos
+            for following in candidates:
+                if following.role != SemanticRole.HEADING1:
+                    return
+                following.role, following.heading_level = SemanticRole.COVER_TITLE, None
+            return
+
+
+def _promote_caption_labels(body: list[SemanticBlock]) -> None:
+    """"Table 1" (y el titulo que lo sigue) pasan a CAPTION aunque la IA los haya dejado como cuerpo."""
+    for position, block in enumerate(body):
+        if block.table_id is not None or block.role not in (
+            SemanticRole.BODY, SemanticRole.CAPTION, SemanticRole.UNKNOWN,
+        ):
+            continue
+        if not section_titles.is_caption_label(block.text):
+            continue
+        block.role = SemanticRole.CAPTION
+        following = body[position + 1] if position + 1 < len(body) else None
+        if (
+            following is not None and following.table_id is None
+            and following.role in (SemanticRole.BODY, SemanticRole.CAPTION)
+            and 0 < len(following.text.strip()) <= _MAX_CAPTION_TITLE_CHARS
+        ):
+            following.role = SemanticRole.CAPTION
+
+
+def _front_matter_end(body: list[SemanticBlock]) -> int:
+    """Indice del primer bloque del texto principal: tras nota del autor y resumen iniciales."""
+    position = 0
+    while position < len(body):
+        block = body[position]
+        if block.role == SemanticRole.HEADING1 and section_titles.is_author_note_title(block.text):
+            position += 1
+            while position < len(body) and not body[position].is_heading():
+                position += 1
+        elif block.role == SemanticRole.HEADING1 and section_titles.is_abstract_title(block.text):
+            position = _abstract_section_end(body, position + 1)
+        elif block.role in (SemanticRole.ABSTRACT, SemanticRole.KEYWORDS, SemanticRole.AUTHOR_NOTE):
+            position += 1
+        else:
+            break
+    return position
+
+
+def _abstract_section_end(body: list[SemanticBlock], position: int) -> int:
+    """
+    Fin del resumen que empieza en `position` (tras su titulo): sus parrafos
+    `abstract` y la linea de palabras clave. Si la IA dejo el resumen como un
+    parrafo `body`, se acepta uno; nunca se avanza hasta el siguiente titulo
+    porque el texto principal puede no tener encabezado propio.
+    """
+    seen_paragraph = False
+    while position < len(body) and not body[position].is_heading():
+        role = body[position].role
+        if role == SemanticRole.KEYWORDS:
+            return position + 1
+        if role == SemanticRole.ABSTRACT or (role == SemanticRole.BODY and not seen_paragraph):
+            seen_paragraph = True
+            position += 1
+            continue
+        break
+    return position
+
+
+def _is_repeated_title(block: SemanticBlock, title_block: SemanticBlock) -> bool:
+    return (
+        block.role in (SemanticRole.HEADING1, SemanticRole.BODY)
+        and section_titles.normalize_title(block.text) == section_titles.normalize_title(title_block.text)
+    )
+
+
+def _break_before_sections(
+    body: list[SemanticBlock], cover: list[SemanticBlock], document_type: DocumentType,
+) -> None:
+    """Resumen, referencias y apendices empiezan en pagina nueva (la nota del autor, no)."""
+    first_reference_marked = False
+    for position, block in enumerate(body):
+        if block.role == SemanticRole.HEADING1 and (
+            section_titles.is_abstract_title(block.text)
+            or section_titles.is_reference_title(block.text)
+            or section_titles.is_appendix_title(block.text)
+        ):
+            block.page_break_before = position > 0 or bool(cover)
+            first_reference_marked = first_reference_marked or section_titles.is_reference_title(block.text)
+        elif (
+            block.role == SemanticRole.REFERENCE and not first_reference_marked
+            and document_type != DocumentType.ANNOTATED_BIBLIOGRAPHY
+        ):
+            previous = body[position - 1] if position else None
+            if previous is None or not previous.is_heading():
+                block.page_break_before = True
+            first_reference_marked = True

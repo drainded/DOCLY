@@ -19,19 +19,19 @@ class TestApplyTemplateValidation:
     def test_unknown_style_raises_template_not_found(self, monkeypatch):
         monkeypatch.setattr(template_engine, "TEMPLATES", {})
         with pytest.raises(TemplateNotFoundError):
-            template_engine.apply_template([], FormatStyle.APA)
+            template_engine.apply_template([], FormatStyle.IEEE)
 
     def test_heading_level_mismatch_raises_template_application_error(self):
         blocks = [_block(0, SemanticRole.HEADING1, heading_level=2)]  # inconsistente
         with pytest.raises(TemplateApplicationError):
-            template_engine.apply_template(blocks, FormatStyle.APA)
+            template_engine.apply_template(blocks, FormatStyle.IEEE)
 
     def test_consistent_heading_levels_pass(self):
         blocks = [
             _block(0, SemanticRole.HEADING1, heading_level=1),
             _block(1, SemanticRole.HEADING2, heading_level=2),
         ]
-        result = template_engine.apply_template(blocks, FormatStyle.APA)
+        result = template_engine.apply_template(blocks, FormatStyle.IEEE)
         assert len(result) == 2
 
 
@@ -45,7 +45,7 @@ class TestCoverFieldReordering:
             _block(4, SemanticRole.COVER_AUTHOR),
         ]
 
-        result = template_engine.apply_template(blocks, FormatStyle.APA)
+        result = template_engine.apply_template(blocks, FormatStyle.IEEE)
 
         # cover_field_order = TITLE, AUTHOR, INSTITUTION, COURSE, DATE
         assert [b.role for b in result[:3]] == [
@@ -64,7 +64,7 @@ class TestCoverFieldReordering:
             _block(5, SemanticRole.IMAGE),                     # figura del cuerpo
         ]
 
-        result = template_engine.apply_template(blocks, FormatStyle.APA)
+        result = template_engine.apply_template(blocks, FormatStyle.IEEE)
 
         assert [b.index for b in result] == [0, 2, 1, 3, 4, 5]
         assert [b.in_cover for b in result] == [True, True, False, False, False, False]
@@ -77,7 +77,7 @@ class TestCoverFieldReordering:
             SemanticBlock(index=3, text="Fecha", role=SemanticRole.COVER_DATE),
         ]
 
-        result = template_engine.apply_template(blocks, FormatStyle.APA)
+        result = template_engine.apply_template(blocks, FormatStyle.IEEE)
 
         assert [b.text for b in result] == ["Alumno X", "Materia:", "Taller II", "Fecha"]
 
@@ -90,14 +90,14 @@ class TestCoverFieldReordering:
             SemanticBlock(index=4, text="Autor", role=SemanticRole.COVER_AUTHOR),
         ]
 
-        result = template_engine.apply_template(blocks, FormatStyle.APA)
+        result = template_engine.apply_template(blocks, FormatStyle.IEEE)
 
         assert [b.text for b in result] == ["Titulo", "Autor", "Instituto X"]
 
     def test_images_without_a_cover_are_left_in_place(self):
         blocks = [_block(0, SemanticRole.IMAGE), _block(1, SemanticRole.BODY)]
 
-        result = template_engine.apply_template(blocks, FormatStyle.APA)
+        result = template_engine.apply_template(blocks, FormatStyle.IEEE)
 
         assert [b.index for b in result] == [0, 1]
         assert not any(b.in_cover for b in result)

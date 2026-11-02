@@ -129,7 +129,7 @@ class TestBuildDocxBasicContent:
         ]
         out = tmp_path / "out.docx"
 
-        build_docx(blocks=blocks, style=FormatStyle.APA, output_path=out, source_docx_path=source_path)
+        build_docx(blocks=blocks, style=FormatStyle.IEEE, output_path=out, source_docx_path=source_path)
 
         paragraphs = docx.Document(out).paragraphs
         has_image = [bool(p._p.xpath(".//w:drawing")) for p in paragraphs]
@@ -159,7 +159,7 @@ class TestBuildDocxBasicContent:
         out = tmp_path / "out.docx"
 
         build_docx(
-            blocks=blocks, style=FormatStyle.APA, output_path=out,
+            blocks=blocks, style=FormatStyle.IEEE, output_path=out,
             language=DocumentLanguage.ENGLISH,
         )
 

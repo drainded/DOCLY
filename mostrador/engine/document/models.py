@@ -62,6 +62,13 @@ class SemanticRole(str, Enum):
     COVER_INSTITUTION = "cover_institution"
     COVER_DATE = "cover_date"
     COVER_COURSE = "cover_course"  # campo opcional de portada
+    COVER_INSTRUCTOR = "cover_instructor"  # profesor / tutor (portada de trabajo de estudiante)
+
+    # Secciones propias de articulos APA (resumen, palabras clave, nota del autor)
+    ABSTRACT = "abstract"          # parrafo(s) del resumen (el titulo "Abstract" es un heading1)
+    KEYWORDS = "keywords"          # linea "Keywords: a, b, c"
+    AUTHOR_NOTE = "author_note"    # parrafo de la nota del autor (el titulo es un heading1)
+    ANNOTATION = "annotation"      # anotacion bajo una referencia (bibliografia anotada)
 
     # Especiales — preservados sin tocar (§7)
     EQUATION = "equation"          # ecuacion OMML: se preserva sin modificar
@@ -79,6 +86,18 @@ class FormatStyle(str, Enum):
     APA = "apa"
     IEEE = "ieee"
     VANCOUVER = "vancouver"
+
+
+class DocumentType(str, Enum):
+    """
+    Caso del documento, etiquetado por la IA (Paso 3) y usado por el codigo
+    deterministico (Paso 4) para elegir la maquetacion de portada y secciones.
+    La IA solo etiqueta; que implica cada caso lo decide el template.
+    """
+    STUDENT_PAPER = "student_paper"                  # trabajo de curso: portada con curso, profesor y fecha
+    PROFESSIONAL_PAPER = "professional_paper"        # articulo: autores, afiliaciones, nota del autor, resumen
+    ANNOTATED_BIBLIOGRAPHY = "annotated_bibliography"
+    OTHER = "other"                                  # cualquier otro: se trata como trabajo de estudiante
 
 
 class DocumentLanguage(str, Enum):
@@ -150,6 +169,10 @@ class SemanticBlock:
     # (p. ej. el logo de la institucion): el builder los coloca en la portada.
     in_cover: bool = False
 
+    # Marcas de maquetacion que pone template_engine (Paso 4) y respeta el builder.
+    page_break_before: bool = False   # empezar este bloque en pagina nueva
+    synthetic: bool = False           # bloque insertado por el motor (no viene del documento)
+
     def is_heading(self) -> bool:
         return self.role in (
             SemanticRole.HEADING1,
@@ -165,6 +188,7 @@ class SemanticBlock:
             SemanticRole.COVER_INSTITUTION,
             SemanticRole.COVER_DATE,
             SemanticRole.COVER_COURSE,
+            SemanticRole.COVER_INSTRUCTOR,
         )
 
     def belongs_to_cover(self) -> bool:
@@ -335,6 +359,9 @@ class ProcessingResult:
     # Estado del proveedor de IA
     gemini_rate_limited: bool = False  # si True → "error temporal, reintentar" (§9)
     fallback_used: bool = False        # True si se uso Groq en lugar de Gemini
+
+    # Caso del documento etiquetado por la IA (None si el clasificador no lo devolvio)
+    document_type: DocumentType | None = None
 
     @property
     def user_message(self) -> str:

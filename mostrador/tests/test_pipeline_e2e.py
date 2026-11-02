@@ -79,7 +79,7 @@ class TestHappyPath:
         source = tmp_path / "entrada.docx"
         docx_factory.make_full_docx(source)
 
-        result = pipeline.run(source, _config(tmp_path), overwrite_styles=True)
+        result = pipeline.run(source, _config(tmp_path, FormatStyle.IEEE), overwrite_styles=True)
 
         document = docx.Document(result.output_docx_path)
         toc_entries = [p.text for p in document.paragraphs if p.style.name.startswith("Mostrador toc_entry")]

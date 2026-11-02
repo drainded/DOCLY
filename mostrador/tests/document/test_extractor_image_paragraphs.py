@@ -92,3 +92,15 @@ def test_text_next_to_image_survives_the_whole_build(tmp_path):
     result = docx.Document(out)
     assert "Texto junto a la imagen" in [p.text for p in result.paragraphs]
     assert len(result.inline_shapes) == 1
+
+
+def test_table_cell_paragraphs_are_separated_not_glued(tmp_path):
+    document = docx.Document()
+    table = document.add_table(rows=1, cols=1)
+    cell = table.cell(0, 0)
+    cell.paragraphs[0].text = "Primera pregunta."
+    cell.add_paragraph("Segunda pregunta.")
+
+    blocks = _extract(document, tmp_path)
+
+    assert [b.text for b in blocks if b.table_id] == ["Primera pregunta.\nSegunda pregunta."]

@@ -11,7 +11,7 @@ import pytest
 
 from engine.classification._shared import build_prompt, parse_and_apply
 from engine.core.exceptions import InvalidClassificationResponseError
-from engine.document.models import DocumentLanguage, SemanticBlock, SemanticRole
+from engine.document.models import DocumentLanguage, DocumentType, SemanticBlock, SemanticRole
 
 
 def _block(index, role, text="algun texto", **kwargs) -> SemanticBlock:
@@ -44,6 +44,36 @@ class TestBuildPrompt:
         blocks = [_block(0, SemanticRole.BODY)]
         prompt, _ = build_prompt(blocks, DocumentLanguage.ENGLISH)
         assert "en" in prompt
+
+
+    def test_prompt_lists_the_apa_roles_and_asks_for_the_document_type(self):
+        prompt, _ = build_prompt([_block(0, SemanticRole.BODY)], DocumentLanguage.ENGLISH)
+
+        for role in ("abstract", "keywords", "author_note", "annotation", "cover_instructor"):
+            assert role in prompt
+        for document_type in DocumentType:
+            assert document_type.value in prompt
+        assert "document_type" in prompt
+
+
+class TestDocumentType:
+    @staticmethod
+    def _parse(document_type):
+        blocks = [_block(0, SemanticRole.BODY)]
+        payload = {"blocks": [{"index": 0, "role": "body"}]}
+        if document_type is not None:
+            payload["document_type"] = document_type
+        return parse_and_apply(json.dumps(payload), all_blocks=blocks, classifiable_blocks=blocks)
+
+    def test_valid_type_is_returned_with_the_blocks(self):
+        result = self._parse("professional_paper")
+
+        assert result.document_type == DocumentType.PROFESSIONAL_PAPER
+        assert [b.index for b in result] == [0]
+
+    @pytest.mark.parametrize("declared", [None, "tesis", 3])
+    def test_missing_or_invalid_type_is_none(self, declared):
+        assert self._parse(declared).document_type is None
 
 
 class TestParseAndApply:

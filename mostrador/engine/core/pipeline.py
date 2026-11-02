@@ -50,6 +50,7 @@ from pathlib import Path
 from engine.document.models import (
     DocumentLanguage,
     DocumentMeta,
+    DocumentType,
     ProcessingConfig,
     ProcessingResult,
     SemanticBlock,
@@ -111,6 +112,8 @@ class PipelineContext:
     # --- Flags de flujo ---
     gemini_rate_limited: bool = False
     fallback_used: bool = False
+    document_type: DocumentType | None = None
+    """Caso del documento etiquetado por la IA en el Paso 3 (None si no lo devolvio)."""
 
 
 # ---------------------------------------------------------------------------
@@ -369,7 +372,8 @@ def _step3_classify(ctx: PipelineContext) -> None:
             model=ctx.config.gemini_model,
             language=lang,
         )
-        logger.info("[Paso 3] Clasificacion completada.")
+        ctx.document_type = getattr(ctx.blocks, "document_type", None)
+        logger.info("[Paso 3] Clasificacion completada. Tipo de documento: %s.", ctx.document_type)
     except GeminiRateLimitError:
         ctx.gemini_rate_limited = True
         if ctx.config.groq_api_key:
@@ -396,6 +400,7 @@ def _step3_classify_fallback(ctx: PipelineContext) -> None:
         language=lang,
     )
     ctx.fallback_used = True
+    ctx.document_type = getattr(ctx.blocks, "document_type", None)
     logger.info("[Paso 3 fallback] Clasificacion via Groq completada.")
 
 
@@ -416,7 +421,9 @@ def _step4_apply_template(ctx: PipelineContext) -> None:
     """
     from engine.formatting.template_engine import apply_template  # noqa: PLC0415
     logger.info("[Paso 4] Aplicando template '%s'.", ctx.config.style.value)
-    ctx.blocks = apply_template(blocks=ctx.blocks, style=ctx.config.style)
+    ctx.blocks = apply_template(
+        blocks=ctx.blocks, style=ctx.config.style, document_type=ctx.document_type,
+    )
     logger.info("[Paso 4] Template aplicado.")
 
 
@@ -448,6 +455,7 @@ def _step5_build_docx(ctx: PipelineContext) -> None:
         output_path=out_path,
         source_docx_path=ctx.working_docx,
         language=lang,
+        document_type=ctx.document_type,
     )
     ctx.output_docx = out_path
     logger.info("[Paso 5] .docx generado correctamente.")
@@ -524,6 +532,7 @@ def _step7_deliver(ctx: PipelineContext) -> ProcessingResult:
         doc_meta=ctx.meta,
         gemini_rate_limited=ctx.gemini_rate_limited,
         fallback_used=ctx.fallback_used,
+        document_type=ctx.document_type,
     )
 
 

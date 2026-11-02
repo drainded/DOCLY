@@ -61,13 +61,36 @@ Cada template de formato (APA / IEEE / Vancouver) debe tener definido explícita
 4. **Reglas de generación de índice**: si el índice se genera vía TOC nativo de Word (campo `TOC` de OpenXML) o se construye por código recorriendo los headings clasificados por Gemini. Debe especificarse cuál mecanismo se usa y por qué.
 5. **Consistencia de estilo**: todos los elementos decorativos (color, tipografía, espaciado) deben provenir del mismo `TEMPLATES[style]` — la IA de clasificación (Gemini) nunca decide estilo visual, solo clasifica roles semánticos (`heading1`, `body`, `list_item`, `reference`, etc.)
 
+### Decisiones de implementación: portada y referencias
+
+Casos que el layout fijo no cubría y que aparecieron con documentos reales. Se resuelven en código determinístico (`template_engine.py`, `docx_builder.py`), nunca por la IA:
+
+- **Orden de la portada**: los campos `cover_*` se agrupan por rol y se ordenan según `cover_field_order` del template. Dentro de un rol se conserva el orden original.
+- **Etiquetas**: un bloque de portada cuyo texto termina en `:` (p. ej. "Alumnos:", "Materia:") toma el rol del campo de portada que lo sigue, para que el reordenado no lo separe de su valor.
+- **Imágenes de portada**: las imágenes situadas antes del primer heading y antes o entre campos de portada (p. ej. el logo) pertenecen a la portada: se colocan al inicio de ella, a un ancho máximo de 2,2", y no pasan al cuerpo.
+- **Líneas repetidas**: si un mismo rol de portada contiene dos líneas con el mismo texto (ignorando espacios), se conserva solo la primera (un cuadro de texto de portada puede repetir la institución). Solo aplica a la portada.
+- **Espaciado**: se aplica un único hueco antes del primer bloque de cada grupo (autor, institución, curso) para que una portada típica quepa en una página.
+- **Numeración de referencias**: si el texto de una referencia ya trae su número (`[3]`, `3.`, `3)`, `(3)`), se elimina antes de aplicar la numeración del template (IEEE `[n]`, Vancouver `n.`); así no se duplica. En APA el texto no se modifica.
+
+### APA 7 por tipo de documento
+
+El template APA sigue los trabajos de ejemplo oficiales de APA (carpeta `APA documents examples/`) y se distingue de IEEE/Vancouver por `TemplateSpec.apa_layout`: todo en negro, sin índice ni líneas decorativas, Times New Roman 12 a doble espacio, márgenes de 1", texto alineado a la izquierda con sangría de primera línea de 0,5", encabezados de nivel 1 (centrado, negrita), 2 (izquierda, negrita), 3 (izquierda, negrita cursiva) y 4 (sangrado, negrita), tablas solo con líneas horizontales (sobre y bajo el encabezado y al pie), rótulos "Table 1"/"Figure 1" en negrita seguidos del título en cursiva, referencias con sangría francesa sin numerar y número de página arriba a la derecha. El tipo de documento (Paso 3) decide la estructura; `template_engine.py` pone las marcas (`page_break_before`, bloques sintéticos) y `docx_builder.py` las dibuja:
+
+| Caso | Estructura |
+|---|---|
+| `student_paper` (y `other`) | Portada (título en negrita, autor, institución, curso, profesor, fecha, centrados) → resumen y palabras clave en página propia, si existen → título repetido en negrita y centrado → texto → referencias (página nueva) → apéndices (página nueva cada uno). Sin encabezado de página: solo el número. |
+| `professional_paper` | Igual, pero la portada lleva título, autores y afiliaciones y la **nota del autor** se queda en esa página; el encabezado de página lleva el título en mayúsculas (máx. 50 caracteres) a la izquierda y el número a la derecha. |
+| `annotated_bibliography` | Portada → título repetido → entradas (sangría francesa) con su anotación sangrada debajo. No se antepone "Referencias". |
+
+Reglas deterministas de apoyo: el título repetido se inserta si el documento no lo repite; si la IA dejó el título de portada como `heading1`, el primer `heading1` anterior a los campos de portada (y los `heading1` seguidos, si el título ocupa varias líneas) pasa a `cover_title`; si la IA no marcó ningún campo de portada en un trabajo de estudiante o artículo, las líneas cortas entre el título y "Author Note"/"Abstract" se asignan por posición (autor, institución, curso, profesor, fecha; en un artículo, autor y luego afiliaciones). El título "Referencias" ya presente en el documento se reutiliza en vez de duplicarlo. Los títulos de sección se reconocen en español e inglés (`engine/formatting/section_titles.py`).
+
 ---
 
 ## 5. PIPELINE TÉCNICO (7 pasos)
 
 1. **Upload** — el usuario sube el documento vía panel web
 2. **Extracción de contenido** — lectura de texto y estructura desde .docx (o .doc convertido) usando `python-docx` + `lxml`
-3. **Detección de estructura (IA)** — Gemini clasifica cada bloque de contenido con un rol semántico estructurado (JSON): `heading1`, `heading2`, `body`, `list_item`, `reference`, etc.
+3. **Detección de estructura (IA)** — Gemini clasifica cada bloque de contenido con un rol semántico estructurado (JSON): `heading1`, `heading2`, `body`, `list_item`, `reference`, etc. En la misma llamada devuelve el **tipo de documento** (`student_paper`, `professional_paper`, `annotated_bibliography`, `other`); la IA solo etiqueta, el formato de cada caso lo decide el código.
 4. **Aplicación de template** — código determinístico (no IA) aplica el `TEMPLATES[style]` correspondiente sobre los roles clasificados
 5. **Generación de .docx** — se construye el documento final vía `python-docx`, incluyendo `styles.xml` y `numbering.xml` personalizados
 6. **Renderizado de preview** — conversión de la primera página a imagen PNG vía LibreOffice headless (`--convert-to png`) para vista previa. Paso no fatal: si falla, el `.docx` se entrega igual sin preview
@@ -75,7 +98,7 @@ Cada template de formato (APA / IEEE / Vancouver) debe tener definido explícita
 
 ### Principio arquitectónico clave: separación IA / determinístico
 
-- **Gemini (Paso 3)**: solo clasificación semántica. Nunca decide estilo visual, colores, ni estructura de portada.
+- **Gemini (Paso 3)**: solo clasificación semántica (roles y tipo de documento). Nunca decide estilo visual, colores, ni estructura de portada.
 - **Código (Pasos 4–6)**: aplicación de estilo 100% determinística, basada en el `TEMPLATES` dict. Esto mantiene el sistema predecible, auditable, y evita que una alucinación de la IA afecte el resultado visual final.
 
 ---
@@ -86,7 +109,7 @@ Un documento se considera correctamente procesado cuando:
 
 - El `.docx` de salida pasa validación contra el esquema XSD de OpenXML. Implementación: tras el Paso 5, `engine/document/xsd_validator.py` valida las partes WordprocessingML contra los XSD transitional de ECMA-376 (Parte 4) y `[Content_Types].xml`/`.rels` contra los de OPC (Parte 2), previa eliminación de las extensiones MCE (`mc:Ignorable`, `AlternateContent`). Si falla, el archivo de salida se descarta y el usuario recibe el error `OUTPUT_SCHEMA_INVALID` (defecto del motor, no del documento). Se puede desactivar con `ProcessingConfig.validate_output_xsd`. Los esquemas se versionan en `engine/document/schemas/ooxml/`
 - La vista previa renderizada coincide visualmente con el template seleccionado (paleta, portada, líneas de separación, índice)
-- No hay pérdida de contenido textual respecto al documento original (texto de entrada = texto de salida, solo cambia el formato)
+- No hay pérdida de contenido textual respecto al documento original (texto de entrada = texto de salida, solo cambia el formato) — salvo la numeración de referencias que reescribe el template y las líneas de portada duplicadas, ambas descritas en la sección 4
 - Todos los headings clasificados por Gemini en el Paso 3 aparecen correctamente reflejados en el índice generado
 - El documento final abre sin errores de corrupción en Word / LibreOffice
 

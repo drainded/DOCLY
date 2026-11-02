@@ -115,6 +115,7 @@ def _run_one(doc: Path, style: FormatStyle, out_dir: Path, overwrite: bool) -> d
         "preview": result.preview_path is not None,
         "headings": result.doc_meta.heading_count if result.doc_meta else None,
         "language": result.doc_meta.detected_language.value if result.doc_meta else None,
+        "document_type": result.document_type.value if result.document_type else None,
         "xsd": None, "missing": [],
     }
     if result.success:
@@ -145,14 +146,14 @@ def _missing_text(original: Path, output: Path) -> list[str]:
 def _render_report(rows: list[dict]) -> str:
     lines = [
         "# Informe de corridas reales", "",
-        "| Documento | Estilo | Resultado | Seg | Idioma | Headings | XSD | Preview | Fallback | Texto perdido |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "| Documento | Estilo | Resultado | Seg | Idioma | Tipo | Headings | XSD | Preview | Fallback | Texto perdido |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         xsd = "-" if r["xsd"] is None else ("OK" if r["xsd"] == 0 else f"{r['xsd']} errores")
         lines.append(
             f"| {r['document']} | {r['style']} | {r['status']}{' (tras confirmar estilos)' if r['paused'] and r['ok'] else ''} "
-            f"| {r['seconds']:.1f} | {r['language'] or '-'} | {r['headings'] if r['headings'] is not None else '-'} "
+            f"| {r['seconds']:.1f} | {r['language'] or '-'} | {r['document_type'] or '-'} | {r['headings'] if r['headings'] is not None else '-'} "
             f"| {xsd} | {'si' if r['preview'] else 'no'} | {'si' if r['fallback'] else 'no'} "
             f"| {len(r['missing'])} |"
         )
