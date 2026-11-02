@@ -133,6 +133,17 @@ def _reorder_cover_fields(
     if not ordered_cover:
         return rest
 
+    # Un cuadro de texto de portada puede repetir la misma linea (hallazgo con
+    # un documento real: la institucion dos veces): se conserva la primera.
+    seen: set[tuple[SemanticRole, str]] = set()
+    unique_cover: list[SemanticBlock] = []
+    for block in ordered_cover:
+        key = (block.role, " ".join(block.text.split()))
+        if key not in seen:
+            seen.add(key)
+            unique_cover.append(block)
+    ordered_cover = unique_cover
+
     cover_images = _extract_cover_images(rest, blocks)
     return cover_images + ordered_cover + [b for b in rest if not b.in_cover]
 

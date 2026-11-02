@@ -81,6 +81,19 @@ class TestCoverFieldReordering:
 
         assert [b.text for b in result] == ["Alumno X", "Materia:", "Taller II", "Fecha"]
 
+    def test_repeated_cover_line_is_kept_once(self):
+        blocks = [
+            SemanticBlock(index=0, text="Instituto X", role=SemanticRole.COVER_INSTITUTION),
+            SemanticBlock(index=1, text="Titulo", role=SemanticRole.COVER_TITLE),
+            SemanticBlock(index=2, text="Instituto  X", role=SemanticRole.COVER_INSTITUTION),
+            SemanticBlock(index=3, text="Autor", role=SemanticRole.COVER_AUTHOR),
+            SemanticBlock(index=4, text="Autor", role=SemanticRole.COVER_AUTHOR),
+        ]
+
+        result = template_engine.apply_template(blocks, FormatStyle.APA)
+
+        assert [b.text for b in result] == ["Titulo", "Autor", "Instituto X"]
+
     def test_images_without_a_cover_are_left_in_place(self):
         blocks = [_block(0, SemanticRole.IMAGE), _block(1, SemanticRole.BODY)]
 
