@@ -141,32 +141,34 @@ class TemplateSpec:
 # (evita que cada template tenga que declarar 6 tonos manualmente).
 # ---------------------------------------------------------------------------
 
-def _cover_fonts(accent_hex: str, title_all_caps: bool = False) -> dict[SemanticRole, FontSpec]:
-    """Tipografia de los 5 campos de portada, con el mismo acento por template."""
+def _cover_fonts(
+    accent_hex: str, title_all_caps: bool = False, font_name: str = "Times New Roman",
+) -> dict[SemanticRole, FontSpec]:
+    """Tipografia de los campos de portada, con el mismo acento por template."""
     return {
         SemanticRole.COVER_TITLE: FontSpec(
-            name="Times New Roman", size_pt=18, bold=True, all_caps=title_all_caps,
+            name=font_name, size_pt=18, bold=True, all_caps=title_all_caps,
             color_hex=accent_hex, alignment=Alignment.CENTER,
             space_before_pt=36, space_after_pt=12, line_spacing=1.5,
         ),
         SemanticRole.COVER_AUTHOR: FontSpec(
-            name="Times New Roman", size_pt=13, alignment=Alignment.CENTER,
+            name=font_name, size_pt=13, alignment=Alignment.CENTER,
             space_after_pt=4,
         ),
         SemanticRole.COVER_INSTITUTION: FontSpec(
-            name="Times New Roman", size_pt=12, italic=True, alignment=Alignment.CENTER,
+            name=font_name, size_pt=12, italic=True, alignment=Alignment.CENTER,
             space_after_pt=4,
         ),
         SemanticRole.COVER_COURSE: FontSpec(
-            name="Times New Roman", size_pt=12, alignment=Alignment.CENTER,
+            name=font_name, size_pt=12, alignment=Alignment.CENTER,
             space_after_pt=4,
         ),
         SemanticRole.COVER_INSTRUCTOR: FontSpec(
-            name="Times New Roman", size_pt=12, alignment=Alignment.CENTER,
+            name=font_name, size_pt=12, alignment=Alignment.CENTER,
             space_after_pt=4,
         ),
         SemanticRole.COVER_DATE: FontSpec(
-            name="Times New Roman", size_pt=12, alignment=Alignment.CENTER,
+            name=font_name, size_pt=12, alignment=Alignment.CENTER,
             space_before_pt=24,
         ),
     }
@@ -189,6 +191,68 @@ _COVER_FIELD_ORDER = (
     SemanticRole.COVER_COURSE,
     SemanticRole.COVER_INSTRUCTOR,
     SemanticRole.COVER_DATE,
+)
+
+
+# ---------------------------------------------------------------------------
+# Mejora de formato: solo mejora visual, sin norma de citacion. Portada,
+# indice, encabezados jerarquicos con acento y lineas separadoras; los
+# encabezados y las referencias conservan su texto tal cual (sin numeracion
+# ni reglas de ninguna norma).
+# ---------------------------------------------------------------------------
+
+_IMPROVEMENT_ACCENT = "2E4057"
+_IMPROVEMENT_FONT = "Calibri"
+
+
+def _improvement_font(**overrides) -> FontSpec:
+    base = dict(name=_IMPROVEMENT_FONT, size_pt=11, line_spacing=1.15)
+    base.update(overrides)
+    return FontSpec(**base)
+
+
+_IMPROVEMENT_TEMPLATE = TemplateSpec(
+    style=FormatStyle.IMPROVEMENT,
+    display_name="Mejora de formato",
+    accent_color_hex=_IMPROVEMENT_ACCENT,
+    separator_line=SeparatorLineSpec(color_hex="9AA8BA", weight_pt=1.0),
+    fonts={
+        **_cover_fonts(_IMPROVEMENT_ACCENT, font_name=_IMPROVEMENT_FONT),
+        SemanticRole.HEADING1: _improvement_font(
+            size_pt=16, bold=True, color_hex=_IMPROVEMENT_ACCENT, space_before_pt=18, space_after_pt=8,
+        ),
+        SemanticRole.HEADING2: _improvement_font(
+            size_pt=13, bold=True, color_hex=_IMPROVEMENT_ACCENT, space_before_pt=14, space_after_pt=6,
+        ),
+        SemanticRole.HEADING3: _improvement_font(size_pt=12, bold=True, italic=True, space_before_pt=10, space_after_pt=4),
+        SemanticRole.HEADING4: _improvement_font(italic=True, bold=True, space_before_pt=6, space_after_pt=3),
+        SemanticRole.BODY: _improvement_font(alignment=Alignment.JUSTIFY, space_after_pt=8),
+        SemanticRole.LIST_ITEM: _improvement_font(space_after_pt=3),
+        SemanticRole.BLOCKQUOTE: _improvement_font(italic=True, left_indent_pt=36, space_after_pt=8),
+        SemanticRole.CAPTION: _improvement_font(
+            size_pt=9.5, italic=True, color_hex="5B6472", alignment=Alignment.CENTER, space_after_pt=8,
+        ),
+        SemanticRole.REFERENCE: _improvement_font(
+            size_pt=10.5, left_indent_pt=28, first_line_indent_pt=-28, space_after_pt=6,
+        ),
+        SemanticRole.TABLE_HEADER: _improvement_font(
+            size_pt=10, bold=True, color_hex="FFFFFF", alignment=Alignment.CENTER, line_spacing=None,
+        ),
+        SemanticRole.TABLE_CELL: _improvement_font(size_pt=10, line_spacing=None),
+    },
+    cover_field_order=_COVER_FIELD_ORDER,
+    toc_title={
+        DocumentLanguage.SPANISH: "Índice", DocumentLanguage.ENGLISH: "Table of Contents",
+        DocumentLanguage.UNKNOWN: "Índice",
+    },
+    reference_section_title={
+        DocumentLanguage.SPANISH: "Referencias", DocumentLanguage.ENGLISH: "References",
+        DocumentLanguage.UNKNOWN: "Referencias",
+    },
+    toc_entry_font_scale=0.85,
+    heading1_numbering=HeadingNumbering.NONE,
+    reference_numbering=ReferenceNumbering.NONE,
+    page_numbers=True,
 )
 
 
@@ -402,7 +466,7 @@ _VANCOUVER_TEMPLATE = TemplateSpec(
 
 
 # IEEE y Vancouver no distinguen resumen/nota/anotacion: heredan el cuerpo.
-for _template in (_IEEE_TEMPLATE, _VANCOUVER_TEMPLATE):
+for _template in (_IMPROVEMENT_TEMPLATE, _IEEE_TEMPLATE, _VANCOUVER_TEMPLATE):
     for _role, _font in _extra_role_fonts(_template.fonts[SemanticRole.BODY]).items():
         _template.fonts.setdefault(_role, _font)
 
@@ -412,6 +476,7 @@ for _template in (_IEEE_TEMPLATE, _VANCOUVER_TEMPLATE):
 # ---------------------------------------------------------------------------
 
 TEMPLATES: dict[FormatStyle, TemplateSpec] = {
+    FormatStyle.IMPROVEMENT: _IMPROVEMENT_TEMPLATE,
     FormatStyle.APA: _APA_TEMPLATE,
     FormatStyle.IEEE: _IEEE_TEMPLATE,
     FormatStyle.VANCOUVER: _VANCOUVER_TEMPLATE,

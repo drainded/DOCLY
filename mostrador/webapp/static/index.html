@@ -9,26 +9,66 @@
 <body>
   <header>
     <h1>Mostrador</h1>
-    <p>Formatea tu documento en APA, IEEE o Vancouver.</p>
+    <p>Mejora el formato de tu documento o aplícale APA, IEEE o Vancouver.</p>
   </header>
 
   <main>
     <section>
       <h2>Subir documento</h2>
       <form id="upload-form">
-        <div class="field">
-          <label for="file-input">Documento (.docx o .doc, hasta 50 MB)</label>
-          <input id="file-input" type="file" name="file" accept=".docx,.doc" required />
-        </div>
-        <div class="field">
-          <label for="style-select">Formato</label>
-          <select id="style-select" name="style">
-            <option value="apa">APA (7.a edicion)</option>
-            <option value="ieee">IEEE</option>
-            <option value="vancouver">Vancouver</option>
-          </select>
-        </div>
-        <button type="submit" class="primary" id="submit-btn">Procesar documento</button>
+        <fieldset id="form-fields">
+          <div class="field">
+            <label for="file-input">Documento (un archivo a la vez, .docx o .doc, hasta 50 MB)</label>
+            <input id="file-input" type="file" name="file" accept=".docx,.doc" required />
+          </div>
+          <div class="field">
+            <span class="label" id="format-label">Formato</span>
+            <div class="format-options" role="radiogroup" aria-labelledby="format-label">
+              <label class="format-card improve">
+                <input type="radio" name="style" value="mejora" checked />
+                <span class="card-box">
+                  <svg viewBox="0 0 64 64" aria-hidden="true">
+                    <rect x="12" y="8" width="30" height="40" rx="2" />
+                    <path d="M19 20h16M19 28h16M19 36h12" />
+                    <path class="spark" d="M46 8l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" />
+                  </svg>
+                  <span class="card-name">Mejora de formato</span>
+                </span>
+              </label>
+              <label class="format-card">
+                <input type="radio" name="style" value="apa" />
+                <span class="card-box">
+                  <svg viewBox="0 0 64 64" aria-hidden="true">
+                    <rect x="16" y="8" width="32" height="44" rx="2" />
+                    <path d="M23 20h18M23 29h18M23 38h12" />
+                  </svg>
+                  <span class="card-name">APA</span>
+                </span>
+              </label>
+              <label class="format-card">
+                <input type="radio" name="style" value="ieee" />
+                <span class="card-box">
+                  <svg viewBox="0 0 64 64" aria-hidden="true">
+                    <rect x="16" y="8" width="32" height="44" rx="2" />
+                    <path d="M23 20h18M23 29h18M23 38h12" />
+                  </svg>
+                  <span class="card-name">IEEE</span>
+                </span>
+              </label>
+              <label class="format-card">
+                <input type="radio" name="style" value="vancouver" />
+                <span class="card-box">
+                  <svg viewBox="0 0 64 64" aria-hidden="true">
+                    <rect x="16" y="8" width="32" height="44" rx="2" />
+                    <path d="M23 20h18M23 29h18M23 38h12" />
+                  </svg>
+                  <span class="card-name">Vancouver</span>
+                </span>
+              </label>
+            </div>
+          </div>
+          <button type="submit" class="primary" id="submit-btn">Procesar documento</button>
+        </fieldset>
       </form>
 
       <div id="status-box"></div>

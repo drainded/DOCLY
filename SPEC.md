@@ -15,12 +15,15 @@ Mostrador es una plataforma que automatiza el proceso de mejorar y aplicar plant
 
 Además de aplicar la norma de citación, cada opción de formato incluye una **mejora de estilo visual** determinística (no ambigua — ver sección 4).
 
+La opción principal del panel es **Mejora de formato** (`FormatStyle.IMPROVEMENT`, valor `mejora`): aplica solo la mejora de estilo visual (portada, índice, encabezados jerárquicos con acento, líneas separadoras, número de página) sin imponer ninguna norma de citación; los encabezados y las referencias conservan su texto, sin numerar. Las otras tres opciones son APA, IEEE y Vancouver.
+
 ---
 
 ## 2. FUNCIONALIDADES DE LA V1
 
 - Panel web donde el usuario adjunta un documento Word (.docx o .doc)
-- Selección de una opción de formato (APA / IEEE / Vancouver), cada una con su mejora de estilo incluida
+- Selección de una opción de formato mediante tarjetas (Mejora de formato / APA / IEEE / Vancouver), cada una con su mejora de estilo incluida
+- Un solo archivo a la vez: mientras un documento se procesa (o espera la confirmación de sobrescritura) la interfaz bloquea el selector, el archivo y el borrado, y el servidor responde 409 a cualquier subida adicional
 - Procesamiento automático vía pipeline de 7 pasos (ver sección 5)
 - Entrega del documento final en formato .docx, junto con una vista previa
 

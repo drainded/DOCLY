@@ -267,3 +267,23 @@ class TestBuildDocxErrorHandling:
         blocks = [_block(0, SemanticRole.BODY, "x")]
         with pytest.raises(DocxBuildError):
             build_docx(blocks=blocks, style=FormatStyle.APA, output_path=tmp_path / "out.docx")
+
+
+class TestImprovementStyle:
+    def test_has_cover_toc_and_keeps_headings_and_references_unnumbered(self, tmp_path):
+        blocks = [
+            _block(0, SemanticRole.COVER_TITLE, "Mi trabajo"),
+            _block(1, SemanticRole.HEADING1, "Introduccion", heading_level=1),
+            _block(2, SemanticRole.BODY, "Cuerpo."),
+            _block(3, SemanticRole.REFERENCE, "Smith, J. (2020)."),
+        ]
+        out = tmp_path / "out.docx"
+
+        build_docx(blocks=blocks, style=FormatStyle.IMPROVEMENT, output_path=out)
+
+        texts = [p.text for p in docx.Document(out).paragraphs]
+        assert texts[0] == "Mi trabajo"
+        assert "Índice" in texts
+        assert "Introduccion" in texts          # sin numeracion romana ni decimal
+        assert "Smith, J. (2020)." in texts     # sin [1] ni 1.
+        assert texts.count("Referencias") == 1

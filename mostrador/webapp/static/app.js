@@ -9,9 +9,11 @@
 // interpolacion directa; todo texto de datos se asigna con textContent
 // para evitar XSS almacenado.
 
-const STYLE_LABELS = { apa: "APA", ieee: "IEEE", vancouver: "Vancouver" };
+const STYLE_LABELS = { mejora: "Mejora de formato", apa: "APA", ieee: "IEEE", vancouver: "Vancouver" };
 
 const form = document.getElementById("upload-form");
+const formFields = document.getElementById("form-fields");
+const fileInput = document.getElementById("file-input");
 const submitBtn = document.getElementById("submit-btn");
 const statusBox = document.getElementById("status-box");
 const conflictDialog = document.getElementById("conflict-dialog");
@@ -24,16 +26,33 @@ const previewImage = document.getElementById("preview-image");
 const closePreviewBtn = document.getElementById("close-preview-btn");
 
 let pendingId = null;
+let busy = false;
 
 function setStatus(kind, message) {
   statusBox.className = kind || "";
   statusBox.textContent = message || "";
 }
 
-function setBusy(busy) {
-  submitBtn.disabled = busy;
+// Un documento a la vez: mientras se procesa (o espera la confirmacion de
+// sobrescritura) se bloquea todo lo que pueda interferir con el sistema.
+function refreshLock() {
+  formFields.disabled = busy || pendingId !== null;
   submitBtn.textContent = busy ? "Procesando..." : "Procesar documento";
+  confirmOverwriteBtn.disabled = busy;
+  cancelOverwriteBtn.disabled = busy;
+  for (const btn of docList.querySelectorAll("button.danger, button.secondary.delete-cancel")) {
+    btn.disabled = busy;
+  }
 }
+
+function setBusy(value) {
+  busy = value;
+  refreshLock();
+}
+
+window.addEventListener("beforeunload", (event) => {
+  if (busy) event.preventDefault();
+});
 
 async function parseJsonOrThrow(response) {
   let body = null;
@@ -58,6 +77,7 @@ function handleProcessingResult(result) {
   }
   conflictDialog.classList.remove("visible");
   pendingId = null;
+  refreshLock();
 
   if (result.success) {
     setStatus("success", result.message || "Documento procesado correctamente.");
@@ -69,13 +89,12 @@ function handleProcessingResult(result) {
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const fileInput = document.getElementById("file-input");
-  const styleSelect = document.getElementById("style-select");
-  if (!fileInput.files.length) return;
+  if (busy || pendingId !== null || !fileInput.files.length) return;
+  const styleInput = form.querySelector('input[name="style"]:checked');
 
   const formData = new FormData();
   formData.append("file", fileInput.files[0]);
-  formData.append("style", styleSelect.value);
+  formData.append("style", styleInput.value);
 
   setBusy(true);
   setStatus("info", "Subiendo y procesando el documento...");
@@ -85,7 +104,7 @@ form.addEventListener("submit", async (event) => {
     const response = await fetch("/api/upload", { method: "POST", body: formData });
     const result = await parseJsonOrThrow(response);
     handleProcessingResult(result);
-    form.reset();
+    fileInput.value = ""; // el formato elegido se conserva
   } catch (err) {
     setStatus("error", err.message);
   } finally {
@@ -112,6 +131,7 @@ cancelOverwriteBtn.addEventListener("click", async () => {
   if (!pendingId) return;
   const idToCancel = pendingId;
   pendingId = null;
+  refreshLock();
   conflictDialog.classList.remove("visible");
   try {
     await fetch(`/api/documents/${idToCancel}/cancel-overwrite`, { method: "POST" });
@@ -137,6 +157,7 @@ async function loadDocuments() {
   for (const doc of documents) {
     docList.appendChild(renderDocumentItem(doc));
   }
+  refreshLock();
 }
 
 function renderDocumentItem(doc) {
@@ -208,7 +229,7 @@ function renderDeleteControl(processingId) {
   confirmBtn.hidden = true;
 
   const cancelBtn = document.createElement("button");
-  cancelBtn.className = "secondary";
+  cancelBtn.className = "secondary delete-cancel";
   cancelBtn.textContent = "No";
   cancelBtn.hidden = true;
 

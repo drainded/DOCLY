@@ -15,9 +15,10 @@ estado de sesion HTTP (regla seccion 9.1: engine/ es agnostico del
 framework web — solo recibe ProcessingConfig ya construido).
 
 Concurrencia (seccion 9): v1 procesa 1 documento a la vez, sin cola
-paralela. `_PROCESSING_LOCK` serializa las llamadas a pipeline.run() —
-cualquier /upload adicional espera aqui a que termine el que esta en
-curso, exactamente como pide el spec.
+paralela. `_PROCESSING_LOCK` serializa las llamadas a pipeline.run() y
+`_reject_if_busy` responde 409 a cualquier /upload o confirm-overwrite que
+llegue mientras hay un documento en proceso (la interfaz tambien bloquea
+sus controles, pero el servidor no confia en ello).
 
 Flujo de conflicto de estilos (seccion 7)
 --------------------------------------------
@@ -140,11 +141,17 @@ async def upload_document(file: UploadFile = File(...), style: str = Form(...)) 
     format_style = _parse_style(style)
     original_filename = _safe_filename(file.filename)
     config = _build_config(format_style)
+    _reject_if_busy()
 
     staged_dir = Path(tempfile.mkdtemp(prefix="mostrador_upload_"))
     staged_path = staged_dir / original_filename
     staged_path.write_bytes(await file.read())
 
+    try:
+        _reject_if_busy()  # otra subida pudo empezar mientras se leia el archivo
+    except HTTPException:
+        _cleanup_staged_file(staged_path)
+        raise
     async with _PROCESSING_LOCK:
         result = await asyncio.to_thread(pipeline.run, staged_path, config)
 
@@ -162,6 +169,7 @@ async def upload_document(file: UploadFile = File(...), style: str = Form(...)) 
 @router.post("/documents/{pending_id}/confirm-overwrite")
 async def confirm_overwrite(pending_id: str) -> dict:
     """Confirma sobrescribir estilos conflictivos (seccion 7) y reintenta el pipeline."""
+    _reject_if_busy()
     pending = _PENDING_OVERWRITES.pop(pending_id, None)
     if pending is None:
         raise HTTPException(status_code=404, detail="No hay ninguna subida pendiente con ese id.")
@@ -232,6 +240,12 @@ def delete_document(processing_id: str) -> dict:
 # ===========================================================================
 # Helpers
 # ===========================================================================
+
+def _reject_if_busy() -> None:
+    """Un documento a la vez: mientras hay uno en proceso no se acepta otro (no se encola)."""
+    if _PROCESSING_LOCK.locked():
+        raise HTTPException(status_code=409, detail="Ya hay un documento en proceso. Espera a que termine.")
+
 
 def _cleanup_staged_file(staged_path: Path) -> None:
     try:

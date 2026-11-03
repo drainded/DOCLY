@@ -83,6 +83,7 @@ class FormatStyle(str, Enum):
     Normas de citacion / formato soportadas en v1 (§1, §4).
     El valor string coincide con la clave usada en el TEMPLATES dict (§4).
     """
+    IMPROVEMENT = "mejora"  # solo mejora visual: sin norma de citacion (portada, indice, encabezados limpios)
     APA = "apa"
     IEEE = "ieee"
     VANCOUVER = "vancouver"

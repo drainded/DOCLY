@@ -60,11 +60,123 @@ section h2 {
   margin-bottom: 14px;
 }
 
-label {
+label,
+.label {
   display: block;
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-bottom: 4px;
+}
+
+fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+fieldset:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+fieldset:disabled * {
+  cursor: not-allowed;
+}
+
+.format-options {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.format-card {
+  flex: 1;
+  margin: 0;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.format-card.improve {
+  flex: 1.35;
+}
+
+.format-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 100%;
+  min-height: 132px;
+  padding: 14px 8px 12px;
+  border: 2px solid var(--text);
+  border-radius: 16px;
+  background: white;
+  transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.card-box svg {
+  width: 56px;
+  height: 56px;
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.card-box svg .spark {
+  fill: var(--accent);
+  stroke-width: 1.5;
+}
+
+.card-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.format-card:hover .card-box {
+  background: var(--accent-light);
+}
+
+.format-card input:checked + .card-box {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  box-shadow: 0 0 0 3px var(--accent);
+}
+
+.format-card input:focus-visible + .card-box {
+  outline: 3px solid #f0a500;
+  outline-offset: 3px;
+}
+
+fieldset:disabled .format-card:hover .card-box {
+  background: white;
+}
+
+fieldset:disabled .format-card input:checked + .card-box {
+  background: var(--accent-light);
+}
+
+@media (max-width: 560px) {
+  .format-options {
+    flex-wrap: wrap;
+  }
+
+  .format-card,
+  .format-card.improve {
+    flex: 1 1 40%;
+  }
 }
 
 input[type="file"],
@@ -99,6 +211,16 @@ button.primary:disabled {
 button.secondary {
   background: var(--accent-light);
   color: var(--accent);
+}
+
+button:disabled,
+.doc-actions a.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.doc-actions a.disabled {
+  pointer-events: none;
 }
 
 button.danger {

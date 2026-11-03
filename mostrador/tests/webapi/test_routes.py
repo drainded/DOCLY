@@ -157,3 +157,41 @@ def test_staging_directory_is_cleaned_after_upload(storage, client, monkeypatch,
     client.post("/api/upload", data={"style": "apa"}, files={"file": ("a.docx", _DOCX_BYTES)})
 
     assert list((tmp_path / "staging").iterdir()) == []
+
+
+class _BusyLock:
+    """Simula un documento en proceso: el candado aparece tomado."""
+
+    def locked(self):
+        return True
+
+
+def test_upload_is_rejected_while_another_document_is_processing(storage, client, monkeypatch, tmp_path):
+    calls = _fake_pipeline(monkeypatch)
+    monkeypatch.setattr(routes, "_PROCESSING_LOCK", _BusyLock())
+
+    response = client.post("/api/upload", data={"style": "mejora"}, files={"file": ("a.docx", _DOCX_BYTES)})
+
+    assert response.status_code == 409
+    assert calls == []
+    assert list((tmp_path / "staging").iterdir()) == []  # no queda nada en staging
+
+
+def test_confirm_overwrite_is_rejected_while_busy_and_keeps_the_pending_upload(storage, client, monkeypatch):
+    _fake_pipeline(monkeypatch, conflict_first=True)
+    paused = client.post("/api/upload", data={"style": "apa"}, files={"file": ("a.docx", _DOCX_BYTES)}).json()
+    monkeypatch.setattr(routes, "_PROCESSING_LOCK", _BusyLock())
+
+    response = client.post(f"/api/documents/{paused['pending_id']}/confirm-overwrite")
+
+    assert response.status_code == 409
+    assert paused["pending_id"] in routes._PENDING_OVERWRITES
+
+
+def test_improvement_style_is_accepted(storage, client, monkeypatch):
+    _fake_pipeline(monkeypatch)
+
+    uploaded = client.post("/api/upload", data={"style": "mejora"}, files={"file": ("a.docx", _DOCX_BYTES)}).json()
+
+    assert uploaded["success"] is True
+    assert client.get("/api/documents").json()[0]["style"] == "mejora"
