@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "mostrador/webapp/static/index.html"
+        ],
+        "createdAt": "2026-11-04T19:04:56.331Z",
+        "reason": "false positive: img of the hidden preview modal; src is set by openPreview(); confirmed in the critique's browser run (assessment B) and by reading app.js"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "mostrador/webapp/static/index.html"
+        ],
+        "createdAt": "2026-11-04T19:06:26.352Z",
+        "reason": "false positive: the only infinite animation is the indeterminate progress bar (.status-bar, styles.css) that signals work in progress; it has a prefers-reduced-motion fallback; no marquee exists in the markup"
+      }
+    ]
+  }
+}

@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-04T18:55:46.259575+00:00",
+  "title": "Design System: Mostrador",
+  "extensions": {
+    "colorMeta": {
+      "ink-navy": {
+        "role": "primary",
+        "displayName": "Azul Marino Tinta",
+        "canonical": "#2e4057",
+        "tonalRamp": [
+          "#1e252e",
+          "#334154",
+          "#465d7b",
+          "#5779a4",
+          "#7f97b7",
+          "#a6b6c9",
+          "#ccd4de",
+          "#f0f2f5"
+        ]
+      },
+      "paper-gray": {
+        "role": "neutral",
+        "displayName": "Gris Papel",
+        "canonical": "#f7f8fa",
+        "tonalRamp": [
+          "#20242c",
+          "#373f50",
+          "#4d5a74",
+          "#61749a",
+          "#8694b0",
+          "#abb4c5",
+          "#ced3dc",
+          "#f0f2f4"
+        ]
+      },
+      "white-sheet": {
+        "role": "neutral",
+        "displayName": "Hoja Blanca",
+        "canonical": "#ffffff",
+        "tonalRamp": [
+          "#262626",
+          "#434343",
+          "#616161",
+          "#7e7e7e",
+          "#9b9b9b",
+          "#b8b8b8",
+          "#d5d5d5",
+          "#f2f2f2"
+        ]
+      },
+      "navy-wash": {
+        "role": "neutral",
+        "displayName": "Lavado Marino",
+        "canonical": "#eef1f5",
+        "tonalRamp": [
+          "#1f252d",
+          "#364151",
+          "#4a5d77",
+          "#5d799e",
+          "#8397b2",
+          "#a9b6c7",
+          "#ced4dd",
+          "#f0f2f4"
+        ]
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Filo Gris",
+        "canonical": "#d8dee6",
+        "tonalRamp": [
+          "#21252c",
+          "#38424f",
+          "#4e5e73",
+          "#627a99",
+          "#8798af",
+          "#acb6c4",
+          "#cfd4dc",
+          "#f1f2f4"
+        ]
+      },
+      "press-black": {
+        "role": "neutral",
+        "displayName": "Negro de Prensa",
+        "canonical": "#1c1f24",
+        "tonalRamp": [
+          "#23252a",
+          "#3d424a",
+          "#565e6b",
+          "#6e7a8d",
+          "#9098a6",
+          "#b1b6bf",
+          "#d1d4d9",
+          "#f1f2f3"
+        ]
+      },
+      "graphite": {
+        "role": "neutral",
+        "displayName": "Grafito",
+        "canonical": "#5b6472",
+        "tonalRamp": [
+          "#232629",
+          "#3d4249",
+          "#575e6a",
+          "#707b8c",
+          "#9199a5",
+          "#b2b7be",
+          "#d2d4d8",
+          "#f1f2f3"
+        ]
+      },
+      "proof-red": {
+        "role": "state",
+        "displayName": "Rojo de Prueba",
+        "canonical": "#b3261e",
+        "tonalRamp": [
+          "#391614",
+          "#69221e",
+          "#9e2a23",
+          "#d72e25",
+          "#db615a",
+          "#e1948f",
+          "#eac3c0",
+          "#f8eded"
+        ]
+      },
+      "approved-green": {
+        "role": "state",
+        "displayName": "Verde Aprobado",
+        "canonical": "#1e6b3c",
+        "tonalRamp": [
+          "#183523",
+          "#26613d",
+          "#309156",
+          "#37c46e",
+          "#68ce90",
+          "#98d8b1",
+          "#c5e6d1",
+          "#eef7f1"
+        ]
+      },
+      "caution-amber": {
+        "role": "state",
+        "displayName": "Ambar de Aviso",
+        "canonical": "#f0c36d",
+        "tonalRamp": [
+          "#3c2d11",
+          "#6f5118",
+          "#a6761b",
+          "#e39d18",
+          "#e4b251",
+          "#e6c68a",
+          "#edddbd",
+          "#f8f4ec"
+        ]
+      },
+      "focus-amber": {
+        "role": "state",
+        "displayName": "Ambar de Foco",
+        "canonical": "#f0a500",
+        "tonalRamp": [
+          "#40300c",
+          "#78570e",
+          "#b7810b",
+          "#fbad01",
+          "#f5bd40",
+          "#f1cd7f",
+          "#f2e0b8",
+          "#faf5eb"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "Title",
+        "purpose": "Nombre del producto en la cabecera."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Titulo de cada seccion."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Campos, mensajes y texto corriente."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Etiquetas de campo y metadatos."
+      },
+      "button": {
+        "displayName": "Button",
+        "purpose": "Texto de todos los botones."
+      },
+      "card-name": {
+        "displayName": "Card name",
+        "purpose": "Nombre del formato bajo su icono, en mayusculas."
+      }
+    },
+    "shadows": [
+      {
+        "name": "selection-ring",
+        "value": "0 0 0 3px #2e4057",
+        "purpose": "Anillo de la tarjeta de formato elegida."
+      },
+      {
+        "name": "modal-scrim",
+        "value": "rgba(0, 0, 0, 0.6)",
+        "purpose": "Velo bajo la vista previa (fondo, no sombra)."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-transition",
+        "value": "0.15s",
+        "purpose": "Fondo, borde y anillo de las tarjetas de formato."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "cards-wrap",
+        "value": "560px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Accion principal: procesar el documento.",
+      "html": "<button class=\"ds-btn-primary\">Procesar documento</button>",
+      "css": ".ds-btn-primary{font-family:'Segoe UI', system-ui, sans-serif;font-size:.9rem;font-weight:600;border:none;border-radius:6px;padding:9px 16px;cursor:pointer;background:#2e4057;color:#fff;}.ds-btn-primary:focus-visible{outline:3px solid #f0a500;outline-offset:3px;}.ds-btn-primary:disabled{opacity:.6;cursor:not-allowed;}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acciones de apoyo: descargar y vista previa.",
+      "html": "<button class=\"ds-btn-secondary\">Vista previa</button>",
+      "css": ".ds-btn-secondary{font-family:'Segoe UI', system-ui, sans-serif;font-size:.9rem;font-weight:600;border:none;border-radius:6px;padding:9px 16px;cursor:pointer;background:#eef1f5;color:#2e4057;}.ds-btn-secondary:focus-visible{outline:3px solid #f0a500;outline-offset:3px;}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Eliminar un documento, con confirmacion en la fila.",
+      "html": "<button class=\"ds-btn-danger\">Eliminar</button>",
+      "css": ".ds-btn-danger{font-family:'Segoe UI', system-ui, sans-serif;font-size:.9rem;font-weight:600;border:none;border-radius:6px;padding:9px 16px;cursor:pointer;background:#fbe9e7;color:#b3261e;}.ds-btn-danger:focus-visible{outline:3px solid #f0a500;outline-offset:3px;}"
+    },
+    {
+      "name": "Format Card",
+      "kind": "custom",
+      "refersTo": "format-card",
+      "description": "Opcion de formato: icono de documento y nombre en mayusculas.",
+      "html": "<div class=\"ds-format-card\"><svg viewBox=\"0 0 64 64\" width=\"56\" height=\"56\" fill=\"none\" stroke=\"#1c1f24\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"16\" y=\"8\" width=\"32\" height=\"44\" rx=\"2\"/><path d=\"M23 20h18M23 29h18M23 38h12\"/></svg><span>APA</span></div>",
+      "css": ".ds-format-card{font-family:'Segoe UI', system-ui, sans-serif;display:flex;flex-direction:column;align-items:center;gap:8px;width:120px;min-height:132px;padding:14px 8px 12px;border:2px solid #1c1f24;border-radius:16px;background:#fff;cursor:pointer;font-size:.8rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;text-align:center;color:#1c1f24;transition:background .15s,box-shadow .15s,border-color .15s;}.ds-format-card:hover{background:#eef1f5;}"
+    },
+    {
+      "name": "Format Card (selected)",
+      "kind": "custom",
+      "refersTo": "format-card-selected",
+      "description": "Tarjeta elegida: borde y anillo azul marino con relleno lavado. La principal lleva estrella.",
+      "html": "<div class=\"ds-format-card-selected\"><svg viewBox=\"0 0 64 64\" width=\"56\" height=\"56\" fill=\"none\" stroke=\"#1c1f24\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"12\" y=\"8\" width=\"30\" height=\"40\" rx=\"2\"/><path d=\"M19 20h16M19 28h16M19 36h12\"/><path d=\"M46 8l3 7 7 3-7 3-3 7-3-7-7-3 7-3z\" fill=\"#2e4057\" stroke-width=\"1.5\"/></svg><span>Mejora de formato</span></div>",
+      "css": ".ds-format-card-selected{font-family:'Segoe UI', system-ui, sans-serif;display:flex;flex-direction:column;align-items:center;gap:8px;width:120px;min-height:132px;padding:14px 8px 12px;border:2px solid #1c1f24;border-radius:16px;background:#fff;cursor:pointer;font-size:.8rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;text-align:center;color:#1c1f24;transition:background .15s,box-shadow .15s,border-color .15s;border-color:#2e4057;background:#eef1f5;box-shadow:0 0 0 3px #2e4057;width:160px;}"
+    },
+    {
+      "name": "File Field",
+      "kind": "input",
+      "refersTo": "field-input",
+      "description": "Selector de un solo archivo con su etiqueta.",
+      "html": "<div class=\"ds-field\"><label>Documento (un archivo a la vez, .docx o .doc, hasta 50 MB)</label><input type=\"file\"></div>",
+      "css": ".ds-field label{display:block;font-family:'Segoe UI', system-ui, sans-serif;font-size:.85rem;color:#5b6472;margin-bottom:4px;}.ds-field input{width:100%;padding:8px;border:1px solid #d8dee6;border-radius:6px;background:#fff;font-family:'Segoe UI', system-ui, sans-serif;font-size:.95rem;}.ds-field input:focus-visible{outline:3px solid #f0a500;outline-offset:2px;}"
+    },
+    {
+      "name": "Status Box",
+      "kind": "custom",
+      "refersTo": "status-box-success",
+      "description": "Resultado del procesamiento; en informacion, exito y error cambia solo el par de colores.",
+      "html": "<div class=\"ds-status\">Documento procesado correctamente.</div>",
+      "css": ".ds-status{font-family:'Segoe UI', system-ui, sans-serif;padding:10px 12px;border-radius:6px;font-size:.9rem;background:#e6f4ea;color:#1e6b3c;}"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "status-box-success",
+      "description": "Insignia del historial: Listo o Error.",
+      "html": "<span class=\"ds-badge\">Listo</span>",
+      "css": ".ds-badge{display:inline-block;padding:1px 8px;border-radius:999px;font-family:'Segoe UI', system-ui, sans-serif;font-size:.72rem;font-weight:700;text-transform:uppercase;background:#e6f4ea;color:#1e6b3c;}"
+    }
+  ],
+  "narrative": {
+    "northStar": "El mostrador de la imprenta",
+    "overview": "Llegas con el borrador bajo el brazo, lo dejas en el mostrador y te lo devuelven pulido. Esa escena manda sobre todo lo visual: papel blanco sobre un fondo gris casi neutro, tinta azul marino para lo que importa, y ningún adorno que no sirva para entregar el trabajo. El panel es una herramienta de una sola pantalla para estudiantes con prisa; su serenidad es parte de la confianza que transmite.\n\nEl carácter es sobrio y de confianza, de tono académico y sin aire de startup. La interfaz no busca llamar la atención: pone al frente tres cosas (el archivo, el formato, el botón) y deja que el resultado hable. La profundidad no se construye con sombras sino con contraste de borde y de relleno; solo aparece un relieve como respuesta a un estado, nunca en reposo.\n\nSe rechaza lo que sea decorativo o llamativo: gradientes, sombras difusas, adornos y el tono de startup.",
+    "keyCharacteristics": [
+      "Plano y firme: bordes definidos y relleno liso, sin sombras en reposo.",
+      "Un solo acento (azul marino tinta) sobre una base de grises fríos.",
+      "Los colores de estado (verde, rojo, ámbar) aparecen solo para comunicar resultado.",
+      "Una columna centrada de 780 px; todo cabe en una pantalla.",
+      "Tipografía del sistema (Segoe UI), sin fuentes externas."
+    ],
+    "rules": [
+      {
+        "name": "The One Ink Rule",
+        "body": "El azul marino es el único acento. Verde, rojo y ámbar no decoran: solo informan de un resultado o de un riesgo.",
+        "section": "colors"
+      },
+      {
+        "name": "The Quiet Gray Rule",
+        "body": "Toda superficie es blanca o gris frío. No se introducen tintes cálidos ni degradados en el fondo.",
+        "section": "colors"
+      },
+      {
+        "name": "The Plain Sans Rule",
+        "body": "Una sola familia. El énfasis se logra con peso y mayúsculas contenidas, nunca con una segunda fuente.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Las superficies son planas en reposo. Un anillo o un velo solo se muestran como respuesta a selección, foco o un modal abierto.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do usar Azul Marino Tinta (`#2e4057`) como único acento y reservar verde, rojo y ámbar para resultados y avisos.",
+      "Do mantener las superficies planas en reposo; el relieve (anillo de 3 px, velo del modal) solo como respuesta a un estado.",
+      "Do bloquear con opacidad del 55 % y cursor de no permitido todo control que no deba tocarse mientras se procesa.",
+      "Do usar Segoe UI (system-ui como respaldo) para todo el texto, con peso y tamaño para la jerarquía.",
+      "Do escribir toda la interfaz en español claro, sin jerga de Word ni de la norma.",
+      "Do dar a cada control un contorno de foco visible (3 px, `#f0a500`) para uso con teclado."
+    ],
+    "donts": [
+      "Don't usar gradientes, sombras difusas ni adornos decorativos.",
+      "Don't darle a la interfaz un tono de startup: ni lenguaje promocional ni efectos llamativos.",
+      "Don't añadir un segundo color de acento ni usar los colores de estado como decoración.",
+      "Don't introducir una segunda familia tipográfica ni fuentes externas.",
+      "Don't mostrar sombras en reposo ni elevar tarjetas o botones sin que haya un estado que lo justifique."
+    ]
+  }
+}
