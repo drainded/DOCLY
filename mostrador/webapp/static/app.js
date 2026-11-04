@@ -83,7 +83,7 @@ function setWorkingStatus(message) {
 
   const hint = document.createElement("div");
   hint.className = "status-hint";
-  hint.textContent = "Tu contenido no se modifica, solo se reorganiza. No cierres esta pagina.";
+  hint.textContent = "Tu contenido no se modifica, solo se reorganiza. No cierres esta página.";
 
   statusBox.replaceChildren(line, bar, hint);
   // Al bloquearse el formulario el foco se pierde: se lleva a la caja de estado,
@@ -176,7 +176,7 @@ function handleProcessingResult(result) {
   if (result.pending_id) {
     pendingId = result.pending_id;
     conflictDialog.classList.add("visible");
-    setStatus("info", "Esperando tu confirmacion para continuar.");
+    setStatus("", ""); // el aviso lo da el propio dialogo, que recibe el foco
     refreshLock();
     conflictDialog.focus();
     return;
@@ -301,10 +301,10 @@ function renderDocumentItem(doc) {
   const metaEl = document.createElement("div");
   metaEl.className = "meta";
   const styleLabel = STYLE_LABELS[doc.style] || doc.style;
-  const date = new Date(doc.created_at).toLocaleString();
+  const date = new Date(doc.created_at).toLocaleString("es", { dateStyle: "medium", timeStyle: "short" });
   metaEl.textContent = doc.success
     ? `${styleLabel} · ${date}`
-    : `${styleLabel} · ${date} · ${doc.error_message || "fallo el procesamiento"}`;
+    : `${styleLabel} · ${date} · ${doc.error_message || "falló el procesamiento"}`;
 
   info.appendChild(nameEl);
   info.appendChild(metaEl);
@@ -317,6 +317,7 @@ function renderDocumentItem(doc) {
     downloadLink.href = `/api/documents/${doc.processing_id}/download`;
     downloadLink.className = "secondary";
     downloadLink.textContent = "Descargar";
+    downloadLink.setAttribute("aria-label", `Descargar ${doc.original_filename}`);
     actions.appendChild(downloadLink);
   }
 
@@ -324,11 +325,12 @@ function renderDocumentItem(doc) {
     const previewBtn = document.createElement("button");
     previewBtn.className = "secondary";
     previewBtn.textContent = "Vista previa";
+    previewBtn.setAttribute("aria-label", `Vista previa de ${doc.original_filename}`);
     previewBtn.addEventListener("click", () => openPreview(doc.processing_id));
     actions.appendChild(previewBtn);
   }
 
-  actions.appendChild(renderDeleteControl(doc.processing_id));
+  actions.appendChild(renderDeleteControl(doc.processing_id, doc.original_filename));
 
   li.appendChild(info);
   li.appendChild(actions);
@@ -338,16 +340,18 @@ function renderDocumentItem(doc) {
 // Confirmacion inline en la propia fila en vez de window.confirm(): mismo
 // patron que el dialogo de conflicto de estilos, y evita depender de
 // dialogos nativos del navegador (algunos entornos los bloquean).
-function renderDeleteControl(processingId) {
+function renderDeleteControl(processingId, filename) {
   const container = document.createElement("span");
 
   const deleteBtn = document.createElement("button");
   deleteBtn.className = "danger";
   deleteBtn.textContent = "Eliminar";
+  deleteBtn.setAttribute("aria-label", `Eliminar ${filename}`);
 
   const confirmBtn = document.createElement("button");
   confirmBtn.className = "danger";
   confirmBtn.textContent = "¿Seguro?";
+  confirmBtn.setAttribute("aria-label", `Confirmar la eliminación de ${filename}`);
   confirmBtn.hidden = true;
 
   const cancelBtn = document.createElement("button");
@@ -355,15 +359,18 @@ function renderDeleteControl(processingId) {
   cancelBtn.textContent = "No";
   cancelBtn.hidden = true;
 
+  // El boton que tenia el foco se oculta: el foco pasa al siguiente paso para no perderse.
   deleteBtn.addEventListener("click", () => {
     deleteBtn.hidden = true;
     confirmBtn.hidden = false;
     cancelBtn.hidden = false;
+    confirmBtn.focus();
   });
   cancelBtn.addEventListener("click", () => {
     deleteBtn.hidden = false;
     confirmBtn.hidden = true;
     cancelBtn.hidden = true;
+    deleteBtn.focus();
   });
   confirmBtn.addEventListener("click", () => deleteDocument(processingId));
 
@@ -378,25 +385,43 @@ async function deleteDocument(processingId) {
     const response = await fetch(`/api/documents/${processingId}`, { method: "DELETE" });
     await parseJsonOrThrow(response);
     if (processingId === resultId) hideResult();
-    loadDocuments();
+    await loadDocuments();
+    document.getElementById("history-title").focus(); // la fila borrada ya no existe
   } catch (err) {
     setStatus("error", `No se pudo eliminar: ${err.message}`);
   }
 }
 
+let previewOpener = null;
+
 function openPreview(processingId) {
+  previewOpener = document.activeElement;
   previewImage.src = `/api/documents/${processingId}/preview`;
   previewModal.classList.add("visible");
+  closePreviewBtn.focus();
 }
 
 function closePreview() {
   previewModal.classList.remove("visible");
   previewImage.src = "";
+  if (previewOpener && previewOpener.isConnected) previewOpener.focus();
+  previewOpener = null;
 }
 
 closePreviewBtn.addEventListener("click", closePreview);
 previewModal.addEventListener("click", (event) => {
   if (event.target === previewModal) closePreview();
+});
+
+// Visor modal: Escape lo cierra y el foco no escapa a la pagina de fondo
+// (su unico control es el boton de cerrar).
+document.addEventListener("keydown", (event) => {
+  if (!previewModal.classList.contains("visible")) return;
+  if (event.key === "Escape") closePreview();
+  else if (event.key === "Tab") {
+    event.preventDefault();
+    closePreviewBtn.focus();
+  }
 });
 
 loadDocuments();

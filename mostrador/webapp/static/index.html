@@ -13,8 +13,8 @@
   </header>
 
   <main>
-    <section>
-      <h2>Subir documento</h2>
+    <section aria-labelledby="upload-title">
+      <h2 id="upload-title">Subir documento</h2>
       <form id="upload-form">
         <fieldset id="form-fields">
           <div class="field">
@@ -100,14 +100,14 @@
       </div>
     </section>
 
-    <section>
-      <h2>Documentos procesados</h2>
+    <section aria-labelledby="history-title">
+      <h2 id="history-title" tabindex="-1">Documentos procesados</h2>
       <ul class="doc-list" id="doc-list"></ul>
-      <p class="empty-state" id="empty-state">Todavia no has procesado ningun documento.</p>
+      <p class="empty-state" id="empty-state">Todavía no has procesado ningún documento.</p>
     </section>
   </main>
 
-  <div id="preview-modal">
+  <div id="preview-modal" role="dialog" aria-modal="true" aria-label="Vista previa del documento">
     <button class="close" id="close-preview-btn" aria-label="Cerrar">&times;</button>
     <img id="preview-image" alt="Vista previa del documento" />
   </div>

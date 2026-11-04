@@ -15,7 +15,7 @@ colors:
   approved-green-wash: "#e6f4ea"
   caution-amber: "#f0c36d"
   caution-amber-wash: "#fff8e6"
-  focus-amber: "#f0a500"
+  focus-amber: "#b45309"
 typography:
   title:
     fontFamily: "Segoe UI, system-ui, sans-serif"
@@ -157,7 +157,7 @@ Paleta de tinta y papel: un azul marino profundo como único acento, grises frí
 - **Rojo de Prueba** (`#b3261e`) sobre su lavado (`#fbe9e7`): errores y acciones destructivas.
 - **Verde Aprobado** (`#1e6b3c`) sobre su lavado (`#e6f4ea`): documento procesado.
 - **Ámbar de Aviso** (`#f0c36d`) sobre su lavado (`#fff8e6`): diálogo de conflicto de estilos.
-- **Ámbar de Foco** (`#f0a500`): contorno de foco con teclado en las tarjetas.
+- **Ámbar de Foco** (`#b45309`): contorno de foco con teclado en todos los controles; supera 3:1 (≥ 4,4:1) sobre blanco y sobre Lavado Marino, a diferencia del ámbar claro anterior (2,1:1). Los colores de estado y su lavado son variables en `:root` (`--danger-bg`, `--success-bg`, `--warning-border`, `--warning-bg`, `--focus`).
 
 ### Named Rules
 **The One Ink Rule.** El azul marino es el único acento. Verde, rojo y ámbar no decoran: solo informan de un resultado o de un riesgo.
@@ -243,7 +243,7 @@ Velo oscuro a pantalla completa, imagen centrada sobre fondo blanco con radio 6 
 - **Do** bloquear con cursor de no permitido todo control que no deba tocarse mientras se procesa, sin apagar el formulario entero: lo elegido y las etiquetas siguen legibles.
 - **Do** usar Segoe UI (system-ui como respaldo) para todo el texto, con peso y tamaño para la jerarquía.
 - **Do** escribir toda la interfaz en español claro, sin jerga de Word ni de la norma.
-- **Do** dar a cada control un contorno de foco visible (3 px, `#f0a500`) para uso con teclado.
+- **Do** dar a cada control un contorno de foco visible (3 px, `#b45309`) para uso con teclado.
 
 ### Don't:
 - **Don't** usar gradientes, sombras difusas ni adornos decorativos.
