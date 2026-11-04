@@ -71,16 +71,31 @@
         </fieldset>
       </form>
 
-      <div id="status-box"></div>
+      <div id="status-box" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></div>
 
-      <div id="conflict-dialog">
-        <p>
+      <div id="conflict-dialog" role="alertdialog" aria-describedby="conflict-text" tabindex="-1">
+        <p id="conflict-text">
           El documento tiene estilos propios que pueden entrar en conflicto con el
           formato seleccionado. ¿Deseas sobrescribirlos?
         </p>
         <div class="actions">
           <button class="primary" id="confirm-overwrite-btn">Sobrescribir y continuar</button>
           <button class="secondary" id="cancel-overwrite-btn">Cancelar</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="result" class="result" aria-labelledby="result-title" hidden>
+      <h2 id="result-title" tabindex="-1">Tu documento está listo</h2>
+      <div class="result-body">
+        <button type="button" class="result-preview" id="result-preview-btn"
+                aria-label="Ampliar la vista previa de la primera página">
+          <img id="result-preview-img" alt="Primera página del documento ya formateado" />
+        </button>
+        <div class="result-info">
+          <p class="result-name" id="result-name"></p>
+          <p class="result-meta" id="result-meta"></p>
+          <a class="primary large" id="result-download" href="#" download>Descargar .docx</a>
         </div>
       </div>
     </section>

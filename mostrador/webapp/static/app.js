@@ -24,20 +24,87 @@ const emptyState = document.getElementById("empty-state");
 const previewModal = document.getElementById("preview-modal");
 const previewImage = document.getElementById("preview-image");
 const closePreviewBtn = document.getElementById("close-preview-btn");
+const resultSection = document.getElementById("result");
+const resultTitle = document.getElementById("result-title");
+const resultPreviewBtn = document.getElementById("result-preview-btn");
+const resultPreviewImg = document.getElementById("result-preview-img");
+const resultName = document.getElementById("result-name");
+const resultMeta = document.getElementById("result-meta");
+const resultDownload = document.getElementById("result-download");
+
+const BASE_TITLE = document.title;
 
 let pendingId = null;
 let busy = false;
+let elapsedTimer = null;
+let lastSubmission = { name: "", style: "" }; // para rotular el resultado si el historial no lo trae
+let resultId = null;
 
+function stopElapsed() {
+  if (elapsedTimer !== null) {
+    clearInterval(elapsedTimer);
+    elapsedTimer = null;
+  }
+}
+
+// La caja de estado es una region viva: "status" anuncia con calma, "alert" interrumpe en errores.
 function setStatus(kind, message) {
+  stopElapsed();
   statusBox.className = kind || "";
+  statusBox.setAttribute("role", kind === "error" ? "alert" : "status");
   statusBox.textContent = message || "";
+}
+
+function formatElapsed(seconds) {
+  if (seconds < 60) return `${seconds} s`;
+  return `${Math.floor(seconds / 60)} min ${String(seconds % 60).padStart(2, "0")} s`;
+}
+
+// El servidor procesa de forma sincrona y no informa fases, asi que no se
+// inventan: se muestra lo cierto (que sigue trabajando y cuanto lleva).
+function setWorkingStatus(message) {
+  stopElapsed();
+  statusBox.className = "info working";
+  statusBox.setAttribute("role", "status");
+
+  const line = document.createElement("div");
+  line.className = "status-line";
+  const text = document.createElement("span");
+  text.textContent = message;
+  const time = document.createElement("span");
+  time.className = "status-time";
+  time.setAttribute("aria-hidden", "true"); // el contador no se anuncia cada segundo
+  time.textContent = formatElapsed(0);
+  line.append(text, time);
+
+  const bar = document.createElement("div");
+  bar.className = "status-bar";
+  bar.setAttribute("aria-hidden", "true");
+
+  const hint = document.createElement("div");
+  hint.className = "status-hint";
+  hint.textContent = "Tu contenido no se modifica, solo se reorganiza. No cierres esta pagina.";
+
+  statusBox.replaceChildren(line, bar, hint);
+  // Al bloquearse el formulario el foco se pierde: se lleva a la caja de estado,
+  // que es lo que el usuario necesita leer, y no a un control deshabilitado.
+  if (busy) statusBox.focus();
+
+  const startedAt = Date.now();
+  elapsedTimer = setInterval(() => {
+    time.textContent = formatElapsed(Math.floor((Date.now() - startedAt) / 1000));
+  }, 1000);
 }
 
 // Un documento a la vez: mientras se procesa (o espera la confirmacion de
 // sobrescritura) se bloquea todo lo que pueda interferir con el sistema.
 function refreshLock() {
   formFields.disabled = busy || pendingId !== null;
+  form.setAttribute("aria-busy", String(busy));
+  submitBtn.classList.toggle("busy", busy);
   submitBtn.textContent = busy ? "Procesando..." : "Procesar documento";
+  if (busy) document.title = `Procesando... · ${BASE_TITLE}`;
+  else if (document.title.startsWith("Procesando")) document.title = BASE_TITLE;
   confirmOverwriteBtn.disabled = busy;
   cancelOverwriteBtn.disabled = busy;
   for (const btn of docList.querySelectorAll("button.danger, button.secondary.delete-cancel")) {
@@ -68,11 +135,50 @@ async function parseJsonOrThrow(response) {
   return body;
 }
 
+function hideResult() {
+  resultSection.hidden = true;
+  resultId = null;
+  resultPreviewImg.removeAttribute("src");
+}
+
+// El resultado es lo primero que ve el usuario al terminar: vista previa de la
+// primera pagina y la descarga como accion principal. Su titulo recibe el foco
+// (y con eso se anuncia), asi que la caja de estado se limpia.
+function showResult(processingId, filename, styleKey, hasPreview) {
+  resultId = processingId;
+  resultName.textContent = filename; // textContent: el nombre lo puso el usuario
+  resultMeta.textContent = `Formato: ${STYLE_LABELS[styleKey] || styleKey}`;
+  resultDownload.href = `/api/documents/${processingId}/download`;
+
+  resultSection.classList.toggle("no-preview", !hasPreview);
+  resultPreviewBtn.hidden = !hasPreview;
+  if (hasPreview) {
+    resultPreviewImg.onerror = () => {
+      resultPreviewBtn.hidden = true;
+      resultSection.classList.add("no-preview");
+    };
+    resultPreviewImg.src = `/api/documents/${processingId}/preview`;
+  } else {
+    resultPreviewImg.removeAttribute("src");
+  }
+
+  resultSection.hidden = false;
+  resultTitle.focus({ preventScroll: true });
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  resultSection.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
+}
+
+resultPreviewBtn.addEventListener("click", () => {
+  if (resultId) openPreview(resultId);
+});
+
 function handleProcessingResult(result) {
   if (result.pending_id) {
     pendingId = result.pending_id;
     conflictDialog.classList.add("visible");
     setStatus("info", "Esperando tu confirmacion para continuar.");
+    refreshLock();
+    conflictDialog.focus();
     return;
   }
   conflictDialog.classList.remove("visible");
@@ -80,11 +186,21 @@ function handleProcessingResult(result) {
   refreshLock();
 
   if (result.success) {
-    setStatus("success", result.message || "Documento procesado correctamente.");
+    setStatus("", "");
+    if (document.hidden) document.title = `Listo · ${BASE_TITLE}`; // aviso si la pestana esta en segundo plano
+    loadDocuments().then((documents) => {
+      const doc = documents.find((d) => d.processing_id === result.processing_id);
+      showResult(
+        result.processing_id,
+        doc ? doc.original_filename : lastSubmission.name,
+        doc ? doc.style : lastSubmission.style,
+        doc ? doc.has_preview : false,
+      );
+    });
   } else {
     setStatus("error", result.message || "No se pudo procesar el documento.");
+    loadDocuments();
   }
-  loadDocuments();
 }
 
 form.addEventListener("submit", async (event) => {
@@ -95,9 +211,11 @@ form.addEventListener("submit", async (event) => {
   const formData = new FormData();
   formData.append("file", fileInput.files[0]);
   formData.append("style", styleInput.value);
+  lastSubmission = { name: fileInput.files[0].name, style: styleInput.value };
 
+  hideResult();
   setBusy(true);
-  setStatus("info", "Subiendo y procesando el documento...");
+  setWorkingStatus("Procesando tu documento...");
   conflictDialog.classList.remove("visible");
 
   try {
@@ -114,8 +232,9 @@ form.addEventListener("submit", async (event) => {
 
 confirmOverwriteBtn.addEventListener("click", async () => {
   if (!pendingId) return;
+  hideResult();
   setBusy(true);
-  setStatus("info", "Sobrescribiendo estilos y continuando...");
+  setWorkingStatus("Sobrescribiendo estilos y procesando...");
   try {
     const response = await fetch(`/api/documents/${pendingId}/confirm-overwrite`, { method: "POST" });
     const result = await parseJsonOrThrow(response);
@@ -139,6 +258,7 @@ cancelOverwriteBtn.addEventListener("click", async () => {
     /* cancelacion best-effort */
   }
   setStatus("info", "Subida cancelada.");
+  fileInput.focus();
 });
 
 async function loadDocuments() {
@@ -148,7 +268,7 @@ async function loadDocuments() {
     documents = await parseJsonOrThrow(response);
   } catch (err) {
     setStatus("error", `No se pudo cargar el historial: ${err.message}`);
-    return;
+    return [];
   }
 
   docList.innerHTML = "";
@@ -158,6 +278,7 @@ async function loadDocuments() {
     docList.appendChild(renderDocumentItem(doc));
   }
   refreshLock();
+  return documents;
 }
 
 function renderDocumentItem(doc) {
@@ -170,6 +291,7 @@ function renderDocumentItem(doc) {
   const nameEl = document.createElement("div");
   nameEl.className = "name";
   nameEl.textContent = doc.original_filename; // textContent: nunca innerHTML con datos de usuario
+  nameEl.title = doc.original_filename; // nombre completo cuando la fila lo recorta
 
   const badge = document.createElement("span");
   badge.className = `badge ${doc.success ? "ok" : "fail"}`;
@@ -255,6 +377,7 @@ async function deleteDocument(processingId) {
   try {
     const response = await fetch(`/api/documents/${processingId}`, { method: "DELETE" });
     await parseJsonOrThrow(response);
+    if (processingId === resultId) hideResult();
     loadDocuments();
   } catch (err) {
     setStatus("error", `No se pudo eliminar: ${err.message}`);

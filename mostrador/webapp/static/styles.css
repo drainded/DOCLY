@@ -7,6 +7,7 @@
   --text: #1c1f24;
   --text-muted: #5b6472;
   --bg: #f7f8fa;
+  --focus: #f0a500;
 }
 
 * {
@@ -75,13 +76,15 @@ fieldset {
   min-width: 0;
 }
 
-fieldset:disabled {
-  opacity: 0.55;
+/* Bloqueado, no apagado: etiquetas, archivo y tarjeta elegida siguen legibles;
+   solo las opciones que no se eligieron se atenuan. */
+fieldset:disabled,
+fieldset:disabled * {
   cursor: not-allowed;
 }
 
-fieldset:disabled * {
-  cursor: not-allowed;
+fieldset:disabled .format-card input:not(:checked) + .card-box {
+  opacity: 0.5;
 }
 
 .format-options {
@@ -156,7 +159,7 @@ fieldset:disabled * {
 }
 
 .format-card input:focus-visible + .card-box {
-  outline: 3px solid #f0a500;
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 
@@ -208,9 +211,52 @@ button.primary:disabled {
   cursor: not-allowed;
 }
 
+/* Procesando: el boton conserva su contraste; el progreso lo cuenta la caja de estado. */
+button.primary.busy:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
 button.secondary {
   background: var(--accent-light);
   color: var(--accent);
+}
+
+/* Los enlaces de accion (descargar) se ven y se comportan como los botones. */
+button,
+a.primary,
+a.secondary {
+  font-family: inherit;
+}
+
+a.primary,
+a.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  padding: 9px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+a.primary {
+  background: var(--accent);
+  color: white;
+}
+
+a.secondary {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+button:focus-visible,
+a.primary:focus-visible,
+a.secondary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 button:disabled,
@@ -254,6 +300,83 @@ button.danger {
   color: var(--success);
 }
 
+#status-box:focus {
+  outline: none;
+}
+
+#status-box:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+#status-box.working {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.status-time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.status-bar {
+  position: relative;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.status-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 35%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: status-slide 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes status-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+/* Sin movimiento: barra fija; el contador de segundos sigue indicando que avanza. */
+@media (prefers-reduced-motion: reduce) {
+  .status-bar::after {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}
+
+#conflict-dialog:focus {
+  outline: none;
+}
+
+#conflict-dialog:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
 #conflict-dialog {
   display: none;
   margin-top: 14px;
@@ -271,6 +394,104 @@ button.danger {
   margin-top: 10px;
   display: flex;
   gap: 8px;
+}
+
+/* Resultado: el documento devuelto es lo primero que se ve tras procesar. */
+.result {
+  border-color: var(--accent);
+  scroll-margin-top: 16px;
+  animation: result-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.result h2 {
+  font-size: 1.25rem;
+}
+
+.result h2:focus {
+  outline: none;
+}
+
+.result h2:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 4px;
+}
+
+.result-body {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.result.no-preview .result-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.result-preview {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--accent-light);
+  cursor: zoom-in;
+  line-height: 0;
+}
+
+.result-preview[hidden] {
+  display: none;
+}
+
+.result-preview img {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 240px;
+  border: 1px solid var(--border);
+  background: white;
+}
+
+.result-name {
+  margin: 0 0 4px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.result-meta {
+  margin: 0 0 20px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+a.primary.large {
+  padding: 12px 22px;
+  font-size: 1rem;
+}
+
+@keyframes result-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result {
+    animation: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .result-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .result-preview {
+    max-width: 280px;
+  }
 }
 
 .doc-list {
@@ -375,4 +596,52 @@ button.danger {
   font-size: 1.6rem;
   cursor: pointer;
   background: none;
+}
+
+/* Movil y tactil: la fila del historial se apila (info arriba, acciones abajo) y
+   los controles llegan a 44 px de alto, el minimo comodo para el pulgar. */
+@media (max-width: 560px), (pointer: coarse) {
+  button,
+  a.primary,
+  a.secondary {
+    min-height: 44px;
+  }
+
+  .doc-actions a,
+  .doc-actions button {
+    font-size: 0.875rem;
+    padding: 10px 14px;
+  }
+
+  #preview-modal .close {
+    min-width: 44px;
+  }
+}
+
+@media (max-width: 560px) {
+  .doc-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .doc-info .name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .doc-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .doc-actions > span {
+    display: contents; /* los botones de borrar se reparten la fila con los demas */
+  }
+
+  .doc-actions a,
+  .doc-actions button {
+    flex: 1 1 auto;
+    text-align: center;
+  }
 }
