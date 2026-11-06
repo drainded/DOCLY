@@ -7,7 +7,7 @@
 
 ## 1. QUÉ HACE LA APLICACIÓN
 
-Mostrador es una plataforma que automatiza el proceso de mejorar y aplicar plantillas de formato a documentos subidos por el cliente. Analiza y convierte documentos a tres normas de citación/formato académico-profesional:
+Mostrador (en la interfaz de usuario la plataforma se llama **DOCLY**; el código, los paquetes y este spec conservan el nombre Mostrador) es una plataforma que automatiza el proceso de mejorar y aplicar plantillas de formato a documentos subidos por el cliente. Analiza y convierte documentos a tres normas de citación/formato académico-profesional:
 
 - **APA (7.ª Edición)**
 - **IEEE**

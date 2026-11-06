@@ -1,12 +1,54 @@
+@font-face {
+  font-family: "Instrument Serif";
+  src: url("/static/fonts/instrument-serif-latin-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/static/fonts/ibm-plex-mono-latin-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/static/fonts/ibm-plex-mono-latin-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/static/fonts/ibm-plex-mono-latin-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("/static/fonts/ibm-plex-mono-latin-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --accent: #2e4057;
-  --accent-light: #eef1f5;
-  --border: #d8dee6;
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-text: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --accent: #000000;
+  --accent-light: #f0f0f0;
+  --border: #d9d9d9;
   --danger: #b3261e;
   --success: #1e6b3c;
-  --text: #1c1f24;
-  --text-muted: #5b6472;
-  --bg: #f7f8fa;
+  --text: #111111;
+  --text-muted: #595959;
+  --bg: #ffffff;
   --danger-bg: #fbe9e7;
   --success-bg: #e6f4ea;
   --warning-border: #f0c36d;
@@ -20,7 +62,8 @@
 
 body {
   margin: 0;
-  font-family: "Segoe UI", system-ui, sans-serif;
+  font-family: var(--font-text);
+  font-size: 0.9375rem;
   background: var(--bg);
   color: var(--text);
 }
@@ -31,9 +74,24 @@ header {
   padding: 20px 32px;
 }
 
+/* Titulos en serif de alto contraste; el resto del texto, en monoespaciada. */
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+
 header h1 {
   margin: 0;
-  font-size: 1.4rem;
+  line-height: 1;
+}
+
+/* Logotipo: DOCLY en la serif de los titulos, espaciado y remarcado, con el simbolo de registrado. */
+.logo {
+  display: block;
+  height: 3.4rem;
+  width: auto;
+  margin-bottom: 10px;
 }
 
 header p {
@@ -58,7 +116,8 @@ section {
 
 section h2 {
   margin-top: 0;
-  font-size: 1.05rem;
+  font-size: 1.6rem;
+  line-height: 1.1;
 }
 
 .field {
@@ -184,6 +243,11 @@ fieldset:disabled .format-card input:checked + .card-box {
   .format-card.improve {
     flex: 1 1 40%;
   }
+}
+
+input,
+select {
+  font-family: inherit;
 }
 
 input[type="file"],
@@ -408,7 +472,7 @@ button.danger {
 }
 
 .result h2 {
-  font-size: 1.25rem;
+  font-size: 2rem;
 }
 
 .result h2:focus {
@@ -613,8 +677,8 @@ a.primary.large {
 
   .doc-actions a,
   .doc-actions button {
-    font-size: 0.875rem;
-    padding: 10px 14px;
+    font-size: 0.8rem; /* la monoespaciada es ancha: asi caben las tres acciones en una fila */
+    padding: 10px 8px;
   }
 
   #preview-modal .close {

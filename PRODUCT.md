@@ -12,7 +12,7 @@ Estudiantes universitarios que deben entregar trabajos, informes o tesis en la n
 
 ## Product Purpose
 
-Mostrador reformatea un documento `.docx` o `.doc` y lo devuelve como `.docx`. Ofrece cuatro opciones: Mejora de formato (solo mejora visual, sin norma de citación; es la opción principal), APA 7, IEEE y Vancouver. El éxito es que el estudiante descargue un documento correcto sin haber tocado un estilo de Word y sin perder contenido.
+DOCLY (antes Mostrador; el código y los paquetes conservan ese nombre) reformatea un documento `.docx` o `.doc` y lo devuelve como `.docx`. Ofrece cuatro opciones: Mejora de formato (solo mejora visual, sin norma de citación; es la opción principal), APA 7, IEEE y Vancouver. El éxito es que el estudiante descargue un documento correcto sin haber tocado un estilo de Word y sin perder contenido.
 
 ## Positioning
 

@@ -20,6 +20,24 @@
         ],
         "createdAt": "2026-11-04T19:06:26.352Z",
         "reason": "false positive: the only infinite animation is the indeterminate progress bar (.status-bar, styles.css) that signals work in progress; it has a prefers-reduced-motion fallback; no marquee exists in the markup"
+      },
+      {
+        "rule": "overused-font",
+        "value": "instrument serif",
+        "files": [
+          "mostrador/webapp/static/styles.css"
+        ],
+        "createdAt": "2026-11-04T20:40:20.467Z",
+        "reason": "title face chosen to match the user's reference image; the user accepted Instrument Serif when asked how to obtain the fonts"
+      },
+      {
+        "rule": "overused-font",
+        "value": "instrument serif",
+        "files": [
+          "mostrador/webapp/static/index.html"
+        ],
+        "createdAt": "2026-11-04T20:40:21.632Z",
+        "reason": "same choice: preload link for the title face the user accepted"
       }
     ]
   }
