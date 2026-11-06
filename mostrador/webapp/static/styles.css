@@ -86,12 +86,51 @@ header h1 {
   line-height: 1;
 }
 
-/* Logotipo: DOCLY en la serif de los titulos, espaciado y remarcado, con el simbolo de registrado. */
+/* Logotipo DOCLY: el vector (logo.svg) hace de mascara de un fondo blanco; al pasar el
+   cursor, un degradado arcoiris se desvanece por encima y recorre las letras. */
 .logo {
+  position: relative;
   display: block;
   height: 3.4rem;
-  width: auto;
+  aspect-ratio: 465.1 / 104;
   margin-bottom: 10px;
+  background: #fff;
+  -webkit-mask: url("/static/logo.svg") center / contain no-repeat;
+  mask: url("/static/logo.svg") center / contain no-repeat;
+}
+
+.logo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  /* El espectro se repite dos veces en un fondo de doble ancho: se ve entero y, al
+     desplazarlo medio fondo, el bucle no se nota. */
+  background: linear-gradient(
+    90deg,
+    #ff2d55, #ff9500, #ffe600, #34c759, #00c7ff, #5e5ce6, #bf5af2,
+    #ff2d55, #ff9500, #ffe600, #34c759, #00c7ff, #5e5ce6, #bf5af2,
+    #ff2d55
+  ) 0 0 / 200% 100% no-repeat;
+  opacity: 0;
+  transition: opacity 0.25s ease-out;
+}
+
+.logo:hover::before {
+  opacity: 1;
+  animation: logo-rainbow 2.4s linear infinite;
+}
+
+@keyframes logo-rainbow {
+  to {
+    background-position: 100% 0;
+  }
+}
+
+/* Sin movimiento: el arcoiris aparece fijo, sin recorrer las letras. */
+@media (prefers-reduced-motion: reduce) {
+  .logo:hover::before {
+    animation: none;
+  }
 }
 
 header p {
@@ -218,7 +257,91 @@ fieldset:disabled .format-card input:not(:checked) + .card-box {
 .format-card input:checked + .card-box {
   border-color: var(--accent);
   background: var(--accent-light);
-  box-shadow: 0 0 0 3px var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+/* Al elegir un formato, una linea arcoiris recorre el borde de la tarjeta empezando por el
+   lado izquierdo. Su rastro (220 grados) se difumina hacia atras, la punta tambien se
+   difumina hacia delante y la linea sigue mas alla del punto de partida antes de apagarse
+   por completo (1,2 s). */
+/* En reposo la cabeza esta antes del punto de partida (-50deg, mas que lo que se extiende su
+   punta suave, 45deg): asi no se ve nada hasta que empieza la animacion. */
+@property --head {
+  syntax: "<angle>";
+  initial-value: -50deg;
+  inherits: false;
+}
+
+.card-box {
+  position: relative;
+}
+
+.card-box::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 3px solid transparent;
+  border-radius: 19px;
+  /* Espectro ciclico: el violeta se funde con el rojo al cerrar la vuelta. */
+  background: conic-gradient(
+    from 270deg,
+    #ff2d55 0deg,
+    #ff9500 51.4deg,
+    #ffe600 102.9deg,
+    #34c759 154.3deg,
+    #00c7ff 205.7deg,
+    #5e5ce6 257.1deg,
+    #bf5af2 308.6deg,
+    #ff2d55 360deg
+  ) border-box;
+  /* Mascara en tres capas: la forma de la linea (rastro + punta suave) por la franja del
+     borde. La forma aparece dos veces, la segunda desplazada una vuelta, para que al pasar
+     el punto de partida la linea continue en lugar de cortarse. */
+  mask-image:
+    conic-gradient(
+      from 270deg,
+      transparent 0deg,
+      transparent calc(var(--head) - 580deg),
+      rgb(0 0 0 / 0.55) calc(var(--head) - 450deg),
+      #000 calc(var(--head) - 380deg),
+      #000 calc(var(--head) - 360deg),
+      transparent calc(var(--head) - 315deg),
+      transparent calc(var(--head) - 220deg),
+      rgb(0 0 0 / 0.55) calc(var(--head) - 90deg),
+      #000 calc(var(--head) - 20deg),
+      #000 var(--head),
+      transparent calc(var(--head) + 45deg)
+    ),
+    linear-gradient(#000 0 0),
+    linear-gradient(#000 0 0);
+  mask-clip: border-box, padding-box, border-box;
+  mask-composite: intersect, exclude, add;
+  pointer-events: none;
+}
+
+.card-box.flash::after {
+  animation: card-trace 1.2s linear 1;
+}
+
+/* La cabeza da la vuelta (360) y sigue otros 160 grados; al final todo se apaga. */
+@keyframes card-trace {
+  from {
+    --head: -50deg;
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    --head: 520deg;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-box.flash::after {
+    animation: none;
+  }
 }
 
 .format-card input:focus-visible + .card-box {

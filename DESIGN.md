@@ -159,7 +159,7 @@ Paleta de tinta y papel: negro sobre blanco, con grises neutros para separar y t
 - **Ámbar de Foco** (`#b45309`): contorno de foco con teclado en todos los controles; supera 3:1 (≥ 4,4:1) sobre blanco y sobre Lavado Gris, a diferencia del ámbar claro anterior (2,1:1). Los colores de estado y su lavado son variables en `:root` (`--danger-bg`, `--success-bg`, `--warning-border`, `--warning-bg`, `--focus`).
 
 ### Named Rules
-**The One Ink Rule.** El negro es la única tinta; no hay azul ni ningún otro color de marca. Verde, rojo y ámbar no decoran: solo informan de un resultado o de un riesgo.
+**The One Ink Rule.** El negro es la única tinta; no hay azul ni ningún otro color de marca. Las únicas excepciones son el arcoíris del logotipo al pasar el cursor y el recorrido de 1,2 s de la tarjeta de formato al elegirla. Verde, rojo y ámbar no decoran: solo informan de un resultado o de un riesgo.
 
 **The Quiet Gray Rule.** Toda superficie es blanca o gris neutro. No se introducen tintes (ni fríos ni cálidos) ni degradados en el fondo.
 
@@ -192,7 +192,7 @@ Las cuatro tarjetas de formato se reparten la fila con 12 px de hueco; «Mejora 
 El sistema es plano. En reposo ninguna superficie lleva sombra: la separación sale de bordes de un píxel en Filo Gris y del contraste entre Hoja Blanca y Lavado Gris. La profundidad aparece solo como respuesta a un estado.
 
 ### Shadow Vocabulary
-- **Anillo de selección** (`box-shadow: 0 0 0 3px #000000`): rodea la tarjeta de formato elegida, sumado a su borde negro.
+- **Anillo de selección** (`box-shadow: 0 0 0 1px #000000`): rodea la tarjeta de formato elegida, sumado a su borde negro de 2 px.
 - **Velo del modal** (`background: rgba(0, 0, 0, 0.6)`): oscurece la página bajo la vista previa.
 
 ### Named Rules
@@ -205,7 +205,9 @@ Esquinas suaves pero contenidas, con un radio por tipo de objeto: 6 px en botone
 ## Components
 
 ### Logotipo
-«DOCLY» en Instrument Serif en mayúsculas, con un espaciado de letras generoso (11 unidades sobre 88), remarcado con un trazo blanco de 2,4 unidades que engrosa las astas finas, y el símbolo ® pequeño alineado con la altura de las versales, arriba a la derecha. Es `webapp/static/logo.svg`: blanco sobre transparente para la cabecera negra, con la fuente incrustada para que se vea igual sin cargar nada externo. Mide 3,4 rem de alto en la cabecera y va dentro del `h1` con `alt="DOCLY"`. Si se necesita sobre fondo claro, se invierte el color del relleno y el trazo.
+«DOCLY®» como vector propio (`webapp/static/logo.svg`): letras geométricas en negrita, trazadas con trazo grueso de terminales y uniones redondeadas (D, O, C, L, Y, de 19 unidades sobre una altura de versal de 100), con un espaciado óptico uniforme (cada pareja de letras deja el mismo hueco medio, medido sobre sus perfiles y con un mínimo de 7 unidades entre trazos, así que la L y la Y quedan tan juntas como las demás; la L es algo más estrecha para que la Y se acerque) y el símbolo ® en círculo arriba a la derecha. No depende de ninguna fuente. En la cabecera el SVG actúa de máscara de un fondo blanco (`.logo`, 3.4 rem de alto), dentro del `h1` con `role="img"` y `aria-label="DOCLY"`.
+
+Al pasar el cursor por el logotipo, un degradado arcoíris (rojo, naranja, amarillo, verde, cian, azul, violeta) aparece en 0,25 s sobre las letras y las recorre en un bucle de 2,4 s. Con `prefers-reduced-motion` el arcoíris aparece fijo, sin recorrido. Es, junto con el recorrido de la tarjeta de formato, una de las dos excepciones de color de la identidad y solo existe en ese estado; no se usa en ningún otro sitio.
 
 ### Buttons
 - **Shape:** esquinas suaves (6 px).
@@ -215,7 +217,7 @@ Esquinas suaves pero contenidas, con un radio por tipo de objeto: 6 px en botone
 
 ### Cards / Containers
 - **Section panel:** fondo Hoja Blanca, borde de 1 px en Filo Gris, radio 8 px, relleno 20 px, sin sombra.
-- **Format card:** caja de 2 px en Negro de Prensa, radio 16 px, icono de documento de 56 px arriba y nombre en mayúsculas abajo. En hover rellena con Lavado Gris. Elegida: borde y anillo en negro más el mismo relleno. Foco con teclado: contorno de 3 px en Ámbar de Foco con 3 px de separación. Bloqueada (mientras se procesa): la elegida conserva todo su contraste y las demás bajan al 50 % de opacidad, con cursor de no permitido y sin cambio de hover.
+- **Format card:** caja de 2 px en Negro de Prensa, radio 16 px, icono de documento de 56 px arriba y nombre en mayúsculas abajo. En hover rellena con Lavado Gris. Elegida: borde de 2 px y anillo fino de 1 px en negro más el mismo relleno. Al elegirla, una línea arcoíris cíclica (rojo, naranja, amarillo, verde, cian, azul, violeta, que se funde de nuevo con el rojo) recorre el borde: empieza por el lado izquierdo y rodea la tarjeta en sentido horario con un rastro de unos 220 grados que se difumina hacia atrás y una punta que también se difumina hacia delante; al pasar el punto de partida la línea sigue otros 160 grados y todo se apaga con un desvanecimiento, dejando el borde negro. Dura 1,2 s. Sin movimiento con `prefers-reduced-motion`. Requiere `mask-composite` estándar (navegadores actuales). Foco con teclado: contorno de 3 px en Ámbar de Foco con 3 px de separación. Bloqueada (mientras se procesa): la elegida conserva todo su contraste y las demás bajan al 50 % de opacidad, con cursor de no permitido y sin cambio de hover.
 
 ### Inputs / Fields
 - **Style:** borde de 1 px en Filo Gris, fondo blanco, radio 6 px, relleno 8 px, ancho completo.

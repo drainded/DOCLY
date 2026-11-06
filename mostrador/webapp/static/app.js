@@ -117,6 +117,17 @@ function setBusy(value) {
   refreshLock();
 }
 
+// Al elegir un formato una linea arcoiris recorre el borde de su tarjeta y deja un rastro y una punta que se difuminan (ver .card-box.flash, 1,2 s).
+for (const radio of form.querySelectorAll('input[name="style"]')) {
+  radio.addEventListener("change", () => {
+    for (const box of form.querySelectorAll(".card-box.flash")) box.classList.remove("flash");
+    const box = radio.nextElementSibling;
+    void box.offsetWidth; // reinicia la animacion si se vuelve a elegir pronto
+    box.classList.add("flash");
+    setTimeout(() => box.classList.remove("flash"), 1300);
+  });
+}
+
 window.addEventListener("beforeunload", (event) => {
   if (busy) event.preventDefault();
 });
