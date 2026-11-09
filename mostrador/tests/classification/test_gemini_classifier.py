@@ -48,7 +48,11 @@ def _patch_client(monkeypatch, *, response_text=None, exception=None):
     from google import genai as genai_module
 
     fake_client = _FakeClient(response_text=response_text, exception=exception)
-    monkeypatch.setattr(genai_module, "Client", lambda api_key: fake_client)
+    def _client(api_key, http_options=None):
+        fake_client.client_args = {"api_key": api_key, "http_options": http_options}
+        return fake_client
+
+    monkeypatch.setattr(genai_module, "Client", _client)
     return fake_client
 
 
@@ -140,3 +144,18 @@ class TestClassifyErrors:
         blocks = [_block(0, SemanticRole.BODY)]
         with pytest.raises(InvalidClassificationResponseError):
             gemini_classifier.classify(blocks=blocks, api_key="k", model="m")
+
+
+class TestApiVersion:
+    def test_client_is_created_with_the_v1beta_api_version(self, monkeypatch):
+        """Sin version fija, un SDK reciente usa v1 y los alias '-latest' dan 404 NOT_FOUND."""
+        fake_client = _patch_client(
+            monkeypatch, response_text=json.dumps({"blocks": [{"index": 0, "role": "body"}]}),
+        )
+
+        gemini_classifier.classify(
+            blocks=[_block(0, SemanticRole.BODY, text="Texto")], api_key="k", model="gemini-flash-lite-latest",
+        )
+
+        assert fake_client.client_args["api_key"] == "k"
+        assert fake_client.client_args["http_options"].api_version == "v1beta"

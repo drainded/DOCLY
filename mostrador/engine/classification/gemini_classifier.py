@@ -42,6 +42,7 @@ from engine.document.models import DocumentLanguage, SemanticBlock
 logger = logging.getLogger(__name__)
 
 _HTTP_TOO_MANY_REQUESTS = 429
+_API_VERSION = "v1beta"
 
 
 def classify(
@@ -117,7 +118,9 @@ def _call_gemini(prompt: str, api_key: str, model: str) -> str:
         ) from exc
 
     try:
-        client = genai.Client(api_key=api_key)
+        # Version de API fijada: los alias "-latest" (p. ej. gemini-flash-lite-latest) solo existen en
+        # v1beta, y segun la version del SDK el valor por defecto puede ser v1 (404 NOT_FOUND).
+        client = genai.Client(api_key=api_key, http_options=genai_types.HttpOptions(api_version=_API_VERSION))
         response = client.models.generate_content(
             model=model,
             contents=prompt,
