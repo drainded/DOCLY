@@ -227,19 +227,221 @@ fieldset:disabled .format-card input:not(:checked) + .card-box {
   transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
 
-.card-box svg {
-  width: 56px;
-  height: 56px;
-  fill: none;
-  stroke: var(--text);
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+/* Iconos de formato: capas apiladas en un escenario de tamano fijo. Los libros pasan de
+   "inclinado" (reposo) a "abierto" (paginas en abanico) y terminan en "cerrado" al elegirse;
+   Mejora de formato muestra el documento y unos destellos que parpadean una vez. */
+.card-icon {
+  position: relative;
+  flex: none;
+  width: 64px;
+  height: 50px;
+  /* Baja el icono para acercarlo al nombre; arriba queda sitio para los destellos. */
+  margin-top: 20px;
 }
 
-.card-box svg .spark {
-  fill: var(--accent);
-  stroke-width: 1.5;
+.card-icon.sparkle {
+  width: 76px;
+}
+
+.card-icon .ic {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.card-icon .ic-open,
+.card-icon .ic-closed {
+  opacity: 0;
+}
+
+.card-icon .ic-doc {
+  inset: 0 auto 0 17.5px;
+  width: 41px;
+}
+
+/* Simbolo de la cita de cada estilo (APA parentesis, IEEE corchetes con numero, Vancouver
+   cruz de la vida): sale del cubo del libro abierto, flota sobre el abanico y se va antes de
+   que el libro se cierre. */
+.card-icon .sym {
+  position: absolute;
+  left: 50%;
+  top: -20px;
+  height: 22px;
+  width: auto;
+  opacity: 0;
+  transform: translate(-50%, 0);
+}
+
+/* Las paginas parten tumbadas a la derecha (angulo de la primera) y giran sobre el cubo
+   central hasta su angulo final. */
+.page {
+  stroke: var(--text);
+  stroke-width: 21;
+  stroke-linecap: round;
+  transform: rotate(-16.23deg);
+}
+
+.ic-sparks {
+  overflow: visible;
+}
+
+.ic-sparks .spark {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  transform: scale(0);
+}
+
+.format-card input:checked + .card-box .ic-sparks .spark {
+  opacity: 1;
+  transform: none;
+  animation: spark-twinkle 0.9s ease-out calc(0.1s + var(--d)) 1 backwards;
+}
+
+@keyframes spark-twinkle {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(-70deg);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.4) rotate(0deg);
+  }
+  55% {
+    transform: scale(0.8);
+  }
+  75% {
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Libro elegido: 1,6 s. Inclinado se desvanece, el libro abierto despliega sus paginas una
+   tras otra (de la derecha a la izquierda) y al final se cierra en el libro vertical. */
+.format-card input:checked + .card-box .book .ic-idle {
+  animation: book-idle 1.6s ease-in-out 1 forwards;
+}
+
+.format-card input:checked + .card-box .book .ic-open {
+  animation: book-open 1.6s ease-in-out 1 forwards;
+}
+
+.format-card input:checked + .card-box .book .page {
+  animation: page-flip 0.55s cubic-bezier(0.3, 0.7, 0.3, 1.15) calc(0.2s + var(--i) * 0.04s) 1 both;
+}
+
+.format-card input:checked + .card-box .book .ic-closed {
+  animation: book-closed 1.6s ease-in-out 1 forwards;
+}
+
+.format-card input:checked + .card-box .book .sym {
+  animation: book-symbol 1.6s ease-in-out 1 backwards;
+}
+
+@keyframes book-symbol {
+  0%,
+  18% {
+    opacity: 0;
+    transform: translate(-50%, 36px) scale(0.3);
+  }
+  36% {
+    opacity: 1;
+    transform: translate(-50%, -2px) scale(1.12);
+  }
+  46% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  78% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  90%,
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -4px) scale(0.9);
+  }
+}
+
+@keyframes page-flip {
+  from {
+    transform: rotate(-16.23deg);
+  }
+  to {
+    transform: rotate(var(--a));
+  }
+}
+
+@keyframes book-idle {
+  0%,
+  6% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  13%,
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes book-open {
+  0%,
+  6% {
+    opacity: 0;
+  }
+  13%,
+  80% {
+    opacity: 1;
+  }
+  88%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes book-closed {
+  0%,
+  80% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  92% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .format-card input:checked + .card-box .ic-sparks .spark,
+  .format-card input:checked + .card-box .book .ic-idle,
+  .format-card input:checked + .card-box .book .ic-open,
+  .format-card input:checked + .card-box .book .page,
+  .format-card input:checked + .card-box .book .sym,
+  .format-card input:checked + .card-box .book .ic-closed {
+    animation: none;
+  }
+
+  .format-card input:checked + .card-box .book .ic-idle {
+    opacity: 0;
+  }
+
+  .format-card input:checked + .card-box .book .ic-closed {
+    opacity: 1;
+  }
 }
 
 .card-name {
@@ -276,7 +478,8 @@ fieldset:disabled .format-card input:not(:checked) + .card-box {
   position: relative;
 }
 
-.card-box::after {
+.card-box::after,
+.result::after {
   content: "";
   position: absolute;
   inset: -3px;
@@ -402,6 +605,42 @@ button.primary:disabled {
   cursor: not-allowed;
 }
 
+/* Con un documento adjuntado, las letras del boton llevan un arcoiris continuo. El degradado
+   es ciclico (el primer y el ultimo color coinciden) y se desplaza un periodo completo por
+   vuelta, asi el bucle no tiene costura. Tonos claros para mantener el contraste sobre negro. */
+button.primary.ready #submit-label {
+  background: linear-gradient(
+      90deg,
+      #ff4d6d,
+      #ff9f0a,
+      #ffe600,
+      #34e06b,
+      #2ad4ff,
+      #7d7aff,
+      #d58cff,
+      #ff4d6d
+    )
+    0 0 / 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: submit-rainbow 3s linear infinite;
+}
+
+@keyframes submit-rainbow {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+/* Sin movimiento: el arcoiris queda fijo. */
+@media (prefers-reduced-motion: reduce) {
+  button.primary.ready #submit-label {
+    animation: none;
+  }
+}
+
 /* Procesando: el boton conserva su contraste; el progreso lo cuenta la caja de estado. */
 button.primary.busy:disabled {
   opacity: 1;
@@ -501,9 +740,40 @@ button.danger {
 }
 
 #status-box.working {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
+}
+
+/* Lluvia de texto arcoiris de fondo (rain.js); el texto y la barra quedan por encima */
+.status-rain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.rain-trail,
+.rain-head {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.rain-head {
+  filter: blur(0.7px);
+}
+
+#status-box.working > :not(.status-rain) {
+  position: relative;
+}
+
+#status-box.working .status-line,
+#status-box.working .status-hint {
+  text-shadow: 0 0 8px var(--accent-light), 0 0 4px var(--accent-light), 0 0 2px var(--accent-light);
 }
 
 .status-line {
@@ -589,9 +859,54 @@ button.danger {
 
 /* Resultado: el documento devuelto es lo primero que se ve tras procesar. */
 .result {
+  position: relative;
   border-color: var(--accent);
   scroll-margin-top: 16px;
   animation: result-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* La linea arcoiris recorre el borde del recuadro sin parar (misma tecnica que las tarjetas
+   de formato: @property --head y mascara conica; ver .card-box::after). Para que el bucle
+   no tenga costura la mascara repite la forma tres veces, una vuelta de distancia entre
+   cada una: entre --head 360 y 720 la imagen del final es identica a la del principio. */
+.result::after {
+  inset: -2px;
+  border-radius: 10px;
+  mask-image:
+    conic-gradient(
+      from 270deg,
+      transparent 0deg,
+      transparent calc(var(--head) - 940deg),
+      rgb(0 0 0 / 0.55) calc(var(--head) - 810deg),
+      #000 calc(var(--head) - 740deg),
+      #000 calc(var(--head) - 720deg),
+      transparent calc(var(--head) - 675deg),
+      transparent calc(var(--head) - 580deg),
+      rgb(0 0 0 / 0.55) calc(var(--head) - 450deg),
+      #000 calc(var(--head) - 380deg),
+      #000 calc(var(--head) - 360deg),
+      transparent calc(var(--head) - 315deg),
+      transparent calc(var(--head) - 220deg),
+      rgb(0 0 0 / 0.55) calc(var(--head) - 90deg),
+      #000 calc(var(--head) - 20deg),
+      #000 var(--head),
+      transparent calc(var(--head) + 45deg)
+    ),
+    linear-gradient(#000 0 0),
+    linear-gradient(#000 0 0);
+}
+
+.result:not([hidden])::after {
+  animation: result-orbit 4s linear infinite;
+}
+
+@keyframes result-orbit {
+  from {
+    --head: 360deg;
+  }
+  to {
+    --head: 720deg;
+  }
 }
 
 .result h2 {
@@ -671,6 +986,10 @@ a.primary.large {
 
 @media (prefers-reduced-motion: reduce) {
   .result {
+    animation: none;
+  }
+
+  .result:not([hidden])::after {
     animation: none;
   }
 }

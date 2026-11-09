@@ -15,6 +15,7 @@ const form = document.getElementById("upload-form");
 const formFields = document.getElementById("form-fields");
 const fileInput = document.getElementById("file-input");
 const submitBtn = document.getElementById("submit-btn");
+const submitLabel = document.getElementById("submit-label");
 const statusBox = document.getElementById("status-box");
 const conflictDialog = document.getElementById("conflict-dialog");
 const confirmOverwriteBtn = document.getElementById("confirm-overwrite-btn");
@@ -41,6 +42,7 @@ let lastSubmission = { name: "", style: "" }; // para rotular el resultado si el
 let resultId = null;
 
 function stopElapsed() {
+  statusRain.stop();
   if (elapsedTimer !== null) {
     clearInterval(elapsedTimer);
     elapsedTimer = null;
@@ -86,6 +88,7 @@ function setWorkingStatus(message) {
   hint.textContent = "Tu contenido no se modifica, solo se reorganiza. No cierres esta página.";
 
   statusBox.replaceChildren(line, bar, hint);
+  statusRain.mount(statusBox); // lluvia de texto arcoiris de fondo
   // Al bloquearse el formulario el foco se pierde: se lleva a la caja de estado,
   // que es lo que el usuario necesita leer, y no a un control deshabilitado.
   if (busy) statusBox.focus();
@@ -102,7 +105,9 @@ function refreshLock() {
   formFields.disabled = busy || pendingId !== null;
   form.setAttribute("aria-busy", String(busy));
   submitBtn.classList.toggle("busy", busy);
-  submitBtn.textContent = busy ? "Procesando..." : "Procesar documento";
+  submitLabel.textContent = busy ? "Procesando..." : "Procesar documento";
+  // Con un documento adjuntado y el formulario libre, las letras del boton llevan el arcoiris continuo.
+  submitBtn.classList.toggle("ready", !busy && pendingId === null && fileInput.files.length > 0);
   if (busy) document.title = `Procesando... · ${BASE_TITLE}`;
   else if (document.title.startsWith("Procesando")) document.title = BASE_TITLE;
   confirmOverwriteBtn.disabled = busy;
@@ -127,6 +132,8 @@ for (const radio of form.querySelectorAll('input[name="style"]')) {
     setTimeout(() => box.classList.remove("flash"), 1300);
   });
 }
+
+fileInput.addEventListener("change", refreshLock);
 
 window.addEventListener("beforeunload", (event) => {
   if (busy) event.preventDefault();
@@ -244,6 +251,7 @@ form.addEventListener("submit", async (event) => {
 confirmOverwriteBtn.addEventListener("click", async () => {
   if (!pendingId) return;
   hideResult();
+  conflictDialog.classList.remove("visible"); // ya confirmado: el aviso se retira (pendingId mantiene el bloqueo)
   setBusy(true);
   setWorkingStatus("Sobrescribiendo estilos y procesando...");
   try {
@@ -252,6 +260,9 @@ confirmOverwriteBtn.addEventListener("click", async () => {
     handleProcessingResult(result);
   } catch (err) {
     setStatus("error", err.message);
+    // Si la peticion fallo sin respuesta del motor, la subida sigue pendiente: se vuelve a
+    // mostrar el aviso para poder reintentar o cancelar (si no, el formulario quedaria bloqueado).
+    if (pendingId !== null) conflictDialog.classList.add("visible");
   } finally {
     setBusy(false);
   }

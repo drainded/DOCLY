@@ -38,6 +38,15 @@
         ],
         "createdAt": "2026-11-04T20:40:21.632Z",
         "reason": "same choice: preload link for the title face the user accepted"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "mostrador/webapp/static/index.html"
+        ],
+        "createdAt": "2026-11-07T00:09:39.695Z",
+        "reason": "User explicitly requested a constant rainbow effect on the letters of the 'Procesar documento' button once a file is attached; it is the same decorative rainbow as the logo hover and format-card trace, applies to one button label only, and respects prefers-reduced-motion"
       }
     ]
   }
