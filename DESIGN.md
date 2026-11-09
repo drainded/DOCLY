@@ -194,6 +194,8 @@ El sistema es plano. En reposo ninguna superficie lleva sombra: la separación s
 ### Shadow Vocabulary
 - **Anillo de selección** (`box-shadow: 0 0 0 1px #000000`): rodea la tarjeta de formato elegida, sumado a su borde negro de 2 px.
 - **Velo del modal** (`background: rgba(0, 0, 0, 0.6)`): oscurece la página bajo la vista previa.
+- **Nota del historial** (`.history-note`, 0.8 rem, Gris Tipográfico): bajo «Documentos procesados» avisa de que los archivos se borran al recargar o cerrar la página y tras una hora sin actividad, y pide descargar lo que se quiera conservar.
+- **Visor de vista previa** (`.viewer`): panel blanco de hasta 980 px que muestra el PDF completo del documento ya formateado. Barra superior con el nombre y el estilo (se recorta con puntos suspensivos), «Descargar .docx», «Abrir el PDF aparte» y cerrar; debajo, el PDF en un `iframe` sobre Lavado Gris. Mientras el servidor convierte (la primera vez), un mensaje en gris lo explica; si falla, el mensaje sale en rojo y las dos salidas siguen disponibles. En móvil ocupa toda la pantalla, con título y cerrar arriba y las dos salidas repartidas en la fila de abajo; en navegadores que no muestran PDF dentro de la página (`navigator.pdfViewerEnabled === false`, como Android) solo ofrece abrirlo aparte.
 
 ### Named Rules
 **The Flat-By-Default Rule.** Las superficies son planas en reposo. Un anillo o un velo solo se muestran como respuesta a selección, foco o un modal abierto.

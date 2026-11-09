@@ -14,6 +14,7 @@ genera para nombrar sus artefactos de salida, seccion 5):
     {processing_id}_original{ext}   copia del archivo subido por el usuario
     {processing_id}.docx            documento final (mismo nombre que pipeline.py ya usa)
     {processing_id}_preview.png     vista previa (mismo nombre que pipeline.py ya usa)
+    {processing_id}.pdf             vista previa completa en PDF (la crea webapp bajo demanda)
 
 Asi, si el caller (webapp/api/routes.py) pasa ProcessingConfig.output_dir
 = storage_dir al invocar pipeline.run(), el .docx y la preview quedan
@@ -51,6 +52,7 @@ _META_SUFFIX = ".meta.json"
 _ORIGINAL_INFIX = "_original"
 _PREVIEW_SUFFIX = "_preview.png"
 _OUTPUT_SUFFIX = ".docx"
+_PDF_SUFFIX = ".pdf"
 
 # pipeline.py genera processing_id via str(uuid.uuid4()) — cualquier otro
 # formato se rechaza antes de tocar el sistema de archivos (ver docstring
@@ -91,6 +93,14 @@ class StoredDocument:
 
     def preview_path(self, storage_dir: Path) -> Path | None:
         path = storage_dir / f"{self.processing_id}{_PREVIEW_SUFFIX}"
+        return path if path.exists() else None
+
+    def pdf_target(self, storage_dir: Path) -> Path:
+        """Ruta donde vive (o se guardara) el PDF de vista previa; puede no existir aun."""
+        return storage_dir / f"{self.processing_id}{_PDF_SUFFIX}"
+
+    def pdf_path(self, storage_dir: Path) -> Path | None:
+        path = self.pdf_target(storage_dir)
         return path if path.exists() else None
 
 

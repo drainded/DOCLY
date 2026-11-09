@@ -968,9 +968,24 @@ button.danger {
   color: var(--text-muted);
 }
 
-a.primary.large {
+a.primary.large,
+button.secondary.large {
   padding: 12px 22px;
   font-size: 1rem;
+}
+
+.result-disclaimer {
+  margin: 16px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
 @keyframes result-in {
@@ -1077,12 +1092,14 @@ a.primary.large {
   font-size: 0.9rem;
 }
 
+/* Visor de la vista previa: el PDF completo del documento ya formateado, en un panel que
+   ocupa la ventana. Arriba van el titulo, las dos salidas (descargar, abrir aparte) y cerrar. */
 #preview-modal {
   display: none;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
-  align-items: center;
+  align-items: stretch;
   justify-content: center;
   padding: 24px;
 }
@@ -1091,21 +1108,74 @@ a.primary.large {
   display: flex;
 }
 
-#preview-modal img {
-  max-width: 100%;
-  max-height: 100%;
-  border-radius: 6px;
-  background: white;
+.viewer {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 980px);
+  background: var(--bg);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.viewer-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.viewer-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 #preview-modal .close {
-  position: absolute;
-  top: 24px;
-  right: 32px;
-  color: white;
+  padding: 4px 12px;
   font-size: 1.6rem;
-  cursor: pointer;
+  line-height: 1;
   background: none;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.viewer-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--accent-light);
+}
+
+.viewer-body iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: white;
+}
+
+.viewer-body iframe[hidden] {
+  display: none;
+}
+
+.viewer-status {
+  margin: 0;
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.viewer-status.error {
+  color: var(--danger);
+}
+
+.viewer-status:empty {
+  display: none;
 }
 
 /* Movil y tactil: la fila del historial se apila (info arriba, acciones abajo) y
@@ -1125,6 +1195,38 @@ a.primary.large {
 
   #preview-modal .close {
     min-width: 44px;
+  }
+}
+
+@media (max-width: 560px) {
+  #preview-modal {
+    padding: 0;
+  }
+
+  .viewer {
+    width: 100%;
+    border-radius: 0;
+  }
+
+  .viewer-bar {
+    flex-wrap: wrap;
+  }
+
+  /* Titulo y cerrar en la primera fila; las dos salidas debajo, repartidas a partes iguales. */
+  .viewer-title {
+    order: 1;
+    flex: 1 1 calc(100% - 56px);
+  }
+
+  #preview-modal .close {
+    order: 2;
+  }
+
+  .viewer-bar a {
+    order: 3;
+    flex: 1 1 40%;
+    font-size: 0.8rem;
+    padding: 10px 8px;
   }
 }
 
@@ -1154,4 +1256,11 @@ a.primary.large {
     flex: 1 1 auto;
     text-align: center;
   }
+}
+
+.history-note {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
 }

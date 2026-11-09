@@ -151,21 +151,36 @@
         <div class="result-info">
           <p class="result-name" id="result-name"></p>
           <p class="result-meta" id="result-meta"></p>
-          <a class="primary large" id="result-download" href="#" download>Descargar .docx</a>
+          <div class="result-actions">
+            <a class="primary large" id="result-download" href="#" download>Descargar .docx</a>
+            <button type="button" class="secondary large" id="result-pdf-btn">Ver en PDF</button>
+          </div>
+          <p class="result-disclaimer">La IA puede cometer errores al clasificar el contenido. Revisa el documento, sobre todo la información importante, antes de usarlo.</p>
         </div>
       </div>
     </section>
 
     <section aria-labelledby="history-title">
       <h2 id="history-title" tabindex="-1">Documentos procesados</h2>
+      <p class="history-note">Los documentos se borran del servidor al recargar o cerrar la página, y tras una hora sin actividad. Descarga los que quieras conservar.</p>
       <ul class="doc-list" id="doc-list"></ul>
       <p class="empty-state" id="empty-state">Todavía no has procesado ningún documento.</p>
     </section>
   </main>
 
-  <div id="preview-modal" role="dialog" aria-modal="true" aria-label="Vista previa del documento">
-    <button class="close" id="close-preview-btn" aria-label="Cerrar">&times;</button>
-    <img id="preview-image" alt="Vista previa del documento" />
+  <div id="preview-modal" role="dialog" aria-modal="true" aria-labelledby="viewer-title">
+    <div class="viewer">
+      <div class="viewer-bar">
+        <p class="viewer-title" id="viewer-title">Vista previa del documento</p>
+        <a class="secondary" id="viewer-download" href="#" download>Descargar .docx</a>
+        <a class="secondary" id="viewer-newtab" href="#" target="_blank" rel="noopener">Abrir el PDF aparte</a>
+        <button type="button" class="close" id="close-preview-btn" aria-label="Cerrar la vista previa">&times;</button>
+      </div>
+      <div class="viewer-body">
+        <p class="viewer-status" id="viewer-status" role="status"></p>
+        <iframe id="viewer-frame" title="Vista previa en PDF del documento" hidden></iframe>
+      </div>
+    </div>
   </div>
 
   <script src="/static/rain.js"></script>

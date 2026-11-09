@@ -9,6 +9,33 @@
 // interpolacion directa; todo texto de datos se asigna con textContent
 // para evitar XSS almacenado.
 
+// Sesion efimera: cada carga de la pagina genera su propio id (solo en memoria, asi que recargar
+// da uno nuevo) y el servidor solo muestra los documentos de ese id. Al recargar o cerrar se
+// avisa al servidor para que borre la sesion; si el aviso no llega, la borra por inactividad.
+function newSessionId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16)); // http sin contexto seguro: sin randomUUID
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+const SESSION_ID = newSessionId();
+
+function api(path) {
+  return `/api${path}${path.includes("?") ? "&" : "?"}sid=${SESSION_ID}`;
+}
+
+window.addEventListener("pagehide", () => {
+  navigator.sendBeacon(api("/session/end"));
+});
+
+// Si el navegador restaura la pagina desde su cache (boton atras) la sesion ya se borro: empieza otra.
+window.addEventListener("pageshow", (event) => {
+  if (event.persisted) location.reload();
+});
+
 const STYLE_LABELS = { mejora: "Mejora de formato", apa: "APA", ieee: "IEEE", vancouver: "Vancouver" };
 
 const form = document.getElementById("upload-form");
@@ -23,7 +50,11 @@ const cancelOverwriteBtn = document.getElementById("cancel-overwrite-btn");
 const docList = document.getElementById("doc-list");
 const emptyState = document.getElementById("empty-state");
 const previewModal = document.getElementById("preview-modal");
-const previewImage = document.getElementById("preview-image");
+const viewerTitle = document.getElementById("viewer-title");
+const viewerDownload = document.getElementById("viewer-download");
+const viewerNewTab = document.getElementById("viewer-newtab");
+const viewerStatus = document.getElementById("viewer-status");
+const viewerFrame = document.getElementById("viewer-frame");
 const closePreviewBtn = document.getElementById("close-preview-btn");
 const resultSection = document.getElementById("result");
 const resultTitle = document.getElementById("result-title");
@@ -32,6 +63,7 @@ const resultPreviewImg = document.getElementById("result-preview-img");
 const resultName = document.getElementById("result-name");
 const resultMeta = document.getElementById("result-meta");
 const resultDownload = document.getElementById("result-download");
+const resultPdfBtn = document.getElementById("result-pdf-btn");
 
 const BASE_TITLE = document.title;
 
@@ -40,6 +72,7 @@ let busy = false;
 let elapsedTimer = null;
 let lastSubmission = { name: "", style: "" }; // para rotular el resultado si el historial no lo trae
 let resultId = null;
+let resultStyle = "";
 
 function stopElapsed() {
   statusRain.stop();
@@ -164,9 +197,10 @@ function hideResult() {
 // (y con eso se anuncia), asi que la caja de estado se limpia.
 function showResult(processingId, filename, styleKey, hasPreview) {
   resultId = processingId;
+  resultStyle = styleKey;
   resultName.textContent = filename; // textContent: el nombre lo puso el usuario
   resultMeta.textContent = `Formato: ${STYLE_LABELS[styleKey] || styleKey}`;
-  resultDownload.href = `/api/documents/${processingId}/download`;
+  resultDownload.href = api(`/documents/${processingId}/download`);
 
   resultSection.classList.toggle("no-preview", !hasPreview);
   resultPreviewBtn.hidden = !hasPreview;
@@ -175,7 +209,7 @@ function showResult(processingId, filename, styleKey, hasPreview) {
       resultPreviewBtn.hidden = true;
       resultSection.classList.add("no-preview");
     };
-    resultPreviewImg.src = `/api/documents/${processingId}/preview`;
+    resultPreviewImg.src = api(`/documents/${processingId}/preview`);
   } else {
     resultPreviewImg.removeAttribute("src");
   }
@@ -186,9 +220,12 @@ function showResult(processingId, filename, styleKey, hasPreview) {
   resultSection.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
 }
 
-resultPreviewBtn.addEventListener("click", () => {
-  if (resultId) openPreview(resultId);
-});
+function openResultPreview() {
+  if (resultId) openPreview(resultId, resultName.textContent, resultStyle);
+}
+
+resultPreviewBtn.addEventListener("click", openResultPreview);
+resultPdfBtn.addEventListener("click", openResultPreview);
 
 function handleProcessingResult(result) {
   if (result.pending_id) {
@@ -237,7 +274,7 @@ form.addEventListener("submit", async (event) => {
   conflictDialog.classList.remove("visible");
 
   try {
-    const response = await fetch("/api/upload", { method: "POST", body: formData });
+    const response = await fetch(api("/upload"), { method: "POST", body: formData });
     const result = await parseJsonOrThrow(response);
     handleProcessingResult(result);
     fileInput.value = ""; // el formato elegido se conserva
@@ -255,7 +292,7 @@ confirmOverwriteBtn.addEventListener("click", async () => {
   setBusy(true);
   setWorkingStatus("Sobrescribiendo estilos y procesando...");
   try {
-    const response = await fetch(`/api/documents/${pendingId}/confirm-overwrite`, { method: "POST" });
+    const response = await fetch(api(`/documents/${pendingId}/confirm-overwrite`), { method: "POST" });
     const result = await parseJsonOrThrow(response);
     handleProcessingResult(result);
   } catch (err) {
@@ -275,7 +312,7 @@ cancelOverwriteBtn.addEventListener("click", async () => {
   refreshLock();
   conflictDialog.classList.remove("visible");
   try {
-    await fetch(`/api/documents/${idToCancel}/cancel-overwrite`, { method: "POST" });
+    await fetch(api(`/documents/${idToCancel}/cancel-overwrite`), { method: "POST" });
   } catch (err) {
     /* cancelacion best-effort */
   }
@@ -286,7 +323,7 @@ cancelOverwriteBtn.addEventListener("click", async () => {
 async function loadDocuments() {
   let documents = [];
   try {
-    const response = await fetch("/api/documents");
+    const response = await fetch(api("/documents"));
     documents = await parseJsonOrThrow(response);
   } catch (err) {
     setStatus("error", `No se pudo cargar el historial: ${err.message}`);
@@ -336,19 +373,19 @@ function renderDocumentItem(doc) {
 
   if (doc.success) {
     const downloadLink = document.createElement("a");
-    downloadLink.href = `/api/documents/${doc.processing_id}/download`;
+    downloadLink.href = api(`/documents/${doc.processing_id}/download`);
     downloadLink.className = "secondary";
     downloadLink.textContent = "Descargar";
     downloadLink.setAttribute("aria-label", `Descargar ${doc.original_filename}`);
     actions.appendChild(downloadLink);
   }
 
-  if (doc.has_preview) {
+  if (doc.success) {
     const previewBtn = document.createElement("button");
     previewBtn.className = "secondary";
     previewBtn.textContent = "Vista previa";
-    previewBtn.setAttribute("aria-label", `Vista previa de ${doc.original_filename}`);
-    previewBtn.addEventListener("click", () => openPreview(doc.processing_id));
+    previewBtn.setAttribute("aria-label", `Vista previa en PDF de ${doc.original_filename}`);
+    previewBtn.addEventListener("click", () => openPreview(doc.processing_id, doc.original_filename, doc.style));
     actions.appendChild(previewBtn);
   }
 
@@ -404,7 +441,7 @@ function renderDeleteControl(processingId, filename) {
 
 async function deleteDocument(processingId) {
   try {
-    const response = await fetch(`/api/documents/${processingId}`, { method: "DELETE" });
+    const response = await fetch(api(`/documents/${processingId}`), { method: "DELETE" });
     await parseJsonOrThrow(response);
     if (processingId === resultId) hideResult();
     await loadDocuments();
@@ -414,18 +451,76 @@ async function deleteDocument(processingId) {
   }
 }
 
+// Visor de la vista previa: el PDF completo del documento ya formateado, antes de descargarlo.
+// El servidor lo convierte con LibreOffice la primera vez (unos segundos) y lo guarda; por eso
+// se pide con fetch(): permite mostrar la espera y un mensaje claro si la conversion falla, algo
+// que un iframe apuntando directo a la URL no deja ver.
 let previewOpener = null;
+let previewAbort = null;
+let previewBlobUrl = null;
 
-function openPreview(processingId) {
+function setViewerStatus(message, isError) {
+  viewerStatus.textContent = message;
+  viewerStatus.classList.toggle("error", Boolean(isError));
+}
+
+function releaseViewerPdf() {
+  if (previewAbort) previewAbort.abort();
+  previewAbort = null;
+  viewerFrame.hidden = true;
+  viewerFrame.removeAttribute("src");
+  if (previewBlobUrl) URL.revokeObjectURL(previewBlobUrl);
+  previewBlobUrl = null;
+}
+
+async function openPreview(processingId, filename, styleKey) {
   previewOpener = document.activeElement;
-  previewImage.src = `/api/documents/${processingId}/preview`;
+  releaseViewerPdf();
+
+  const pdfUrl = api(`/documents/${processingId}/pdf`);
+  viewerTitle.textContent = `${filename} · ${STYLE_LABELS[styleKey] || styleKey}`;
+  viewerTitle.title = viewerTitle.textContent; // el titulo se recorta con puntos suspensivos
+  viewerDownload.href = api(`/documents/${processingId}/download`);
+  viewerNewTab.href = pdfUrl;
+  setViewerStatus("Preparando la vista previa… la primera vez puede tardar unos segundos.", false);
   previewModal.classList.add("visible");
   closePreviewBtn.focus();
+
+  // Los moviles (Android) no muestran PDF dentro de la pagina: se ofrece abrirlo aparte.
+  if (navigator.pdfViewerEnabled === false) {
+    setViewerStatus("Este navegador no muestra PDF dentro de la página. Usa «Abrir el PDF aparte».", false);
+    return;
+  }
+
+  const controller = new AbortController();
+  previewAbort = controller;
+  try {
+    const response = await fetch(pdfUrl, { signal: controller.signal });
+    if (!response.ok) {
+      let detail = `Error HTTP ${response.status}`;
+      try {
+        detail = (await response.json()).detail || detail;
+      } catch (_) {
+        // el cuerpo no era JSON: se deja el codigo HTTP
+      }
+      throw new Error(detail);
+    }
+    const blob = await response.blob();
+    if (controller.signal.aborted) return;
+    previewBlobUrl = URL.createObjectURL(blob);
+    viewerFrame.src = `${previewBlobUrl}#navpanes=0`;
+    viewerFrame.hidden = false;
+    setViewerStatus("", false);
+  } catch (err) {
+    if (controller.signal.aborted) return; // el usuario cerro el visor
+    setViewerStatus(err.message, true);
+  }
 }
 
 function closePreview() {
   previewModal.classList.remove("visible");
-  previewImage.src = "";
+  releaseViewerPdf();
+  setViewerStatus("", false);
   if (previewOpener && previewOpener.isConnected) previewOpener.focus();
   previewOpener = null;
 }
@@ -435,13 +530,12 @@ previewModal.addEventListener("click", (event) => {
   if (event.target === previewModal) closePreview();
 });
 
-// Visor modal: Escape lo cierra y el foco no escapa a la pagina de fondo
-// (su unico control es el boton de cerrar).
+// Visor modal: Escape lo cierra y el foco no escapa a la pagina de fondo.
 document.addEventListener("keydown", (event) => {
-  if (!previewModal.classList.contains("visible")) return;
-  if (event.key === "Escape") closePreview();
-  else if (event.key === "Tab") {
-    event.preventDefault();
+  if (previewModal.classList.contains("visible") && event.key === "Escape") closePreview();
+});
+document.addEventListener("focusin", (event) => {
+  if (previewModal.classList.contains("visible") && !previewModal.contains(event.target)) {
     closePreviewBtn.focus();
   }
 });

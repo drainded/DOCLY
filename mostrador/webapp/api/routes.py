@@ -3,12 +3,19 @@ webapp/api/routes.py
 =======================
 Endpoints HTTP del panel de Mostrador (seccion 2):
   POST   /api/upload
+  POST   /api/session/end
   POST   /api/documents/{pending_id}/confirm-overwrite
   POST   /api/documents/{pending_id}/cancel-overwrite
   GET    /api/documents
   GET    /api/documents/{processing_id}/download
   GET    /api/documents/{processing_id}/preview
+  GET    /api/documents/{processing_id}/pdf
   DELETE /api/documents/{processing_id}
+
+Sesiones efimeras (webapp/api/sessions.py): toda llamada lleva `sid`, el uuid que el
+navegador genera al cargar la pagina, y solo ve los documentos de esa sesion
+(`{storage}/{sid}/`). Recargar o cerrar la pagina borra la sesion; una limpieza
+periodica elimina las que quedaron sin actividad.
 
 Esta es la UNICA capa que conoce FastAPI, lee os.environ, o mantiene
 estado de sesion HTTP (regla seccion 9.1: engine/ es agnostico del
@@ -45,14 +52,19 @@ import logging
 import os
 import re
 import tempfile
+import time
 from pathlib import Path
+from typing import NamedTuple
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 
 from engine.core import pipeline
+from engine.core.exceptions import PreviewRenderError
 from engine.document import store
 from engine.document.models import FormatStyle, ProcessingConfig, ProcessingResult
+from engine.formatting.pdf_renderer import render_pdf
+from webapp.api import sessions
 from webapp.config import MissingAPIKeyError, load_processing_config
 
 logger = logging.getLogger(__name__)
@@ -64,6 +76,10 @@ _DEFAULT_FILENAME = "documento.docx"
 # Seccion 9: 1 documento a la vez, sin cola paralela.
 _PROCESSING_LOCK = asyncio.Lock()
 
+# La conversion a PDF de la vista previa tambien va de una en una: si el usuario abre dos
+# veces el visor, la segunda peticion espera y reutiliza el PDF que dejo la primera.
+_PDF_LOCK = asyncio.Lock()
+
 
 class _PendingUpload:
     """Subida en espera de confirmacion de sobrescritura de estilos (seccion 7).
@@ -72,12 +88,14 @@ class _PendingUpload:
     sin necesidad de persistir estado entre reinicios del servidor).
     """
 
-    __slots__ = ("staged_path", "original_filename", "style")
+    __slots__ = ("staged_path", "original_filename", "style", "sid", "created")
 
-    def __init__(self, staged_path: Path, original_filename: str, style: FormatStyle) -> None:
+    def __init__(self, staged_path: Path, original_filename: str, style: FormatStyle, sid: str) -> None:
         self.staged_path = staged_path
         self.original_filename = original_filename
         self.style = style
+        self.sid = sid  # la sesion duena: solo ella puede confirmar o cancelar
+        self.created = time.monotonic()
 
 
 _PENDING_OVERWRITES: dict[str, _PendingUpload] = {}
@@ -91,21 +109,44 @@ def _storage_dir() -> Path:
     return Path(os.environ.get("MOSTRADOR_STORAGE_DIR", "storage")).resolve()
 
 
-def _build_config(style: FormatStyle) -> ProcessingConfig:
+def _session_ttl_seconds() -> float:
+    """Inactividad tras la cual una sesion se borra aunque la pagina no haya avisado."""
+    return float(os.environ.get("MOSTRADOR_SESSION_TTL_MINUTES", "60")) * 60
+
+
+class _Session(NamedTuple):
+    sid: str
+    directory: Path  # {storage}/{sid}: puede no existir hasta la primera subida
+
+
+def _session(sid: str = Query(..., description="Id de sesion que genera el navegador (uuid4).")) -> _Session:
+    """Valida el `sid` (formato exacto de uuid4, anti path traversal) y marca actividad."""
+    if not sessions.is_valid_sid(sid):
+        raise HTTPException(status_code=400, detail="Sesion invalida. Recarga la pagina.")
+    directory = sessions.session_dir(_storage_dir(), sid)
+    sessions.touch(directory)
+    return _Session(sid, directory)
+
+
+def _build_config(style: FormatStyle, output_dir: Path) -> ProcessingConfig:
     """
     Construye el ProcessingConfig via webapp.config.load_processing_config()
     (carga GEMINI_API_KEY/GROQ_API_KEY/GEMINI_MODEL/... desde .env, seccion
-    9.1) y fuerza `output_dir` al directorio de almacenamiento persistente,
-    para que pipeline.run() escriba el .docx y la preview directamente en
-    su ubicacion final (engine/document/store.py los recoge desde ahi sin
+    9.1) y fuerza `output_dir` al directorio de la sesion, para que
+    pipeline.run() escriba el .docx y la preview directamente en su
+    ubicacion final (engine/document/store.py los recoge desde ahi sin
     necesidad de moverlos despues).
     """
     try:
         config = load_processing_config(style=style)
     except MissingAPIKeyError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    config.output_dir = _storage_dir()
+    config.output_dir = output_dir
     return config
+
+
+def _libreoffice_bin() -> str:
+    return os.environ.get("LIBREOFFICE_BIN", "libreoffice")
 
 
 def _safe_filename(raw: str | None) -> str:
@@ -136,11 +177,13 @@ def _parse_style(style: str) -> FormatStyle:
 # ===========================================================================
 
 @router.post("/upload")
-async def upload_document(file: UploadFile = File(...), style: str = Form(...)) -> dict:
+async def upload_document(
+    file: UploadFile = File(...), style: str = Form(...), session: _Session = Depends(_session),
+) -> dict:
     """Sube un documento y lo procesa (seccion 2)."""
     format_style = _parse_style(style)
     original_filename = _safe_filename(file.filename)
-    config = _build_config(format_style)
+    config = _build_config(format_style, session.directory)
     _reject_if_busy()
 
     staged_dir = Path(tempfile.mkdtemp(prefix="mostrador_upload_"))
@@ -152,61 +195,71 @@ async def upload_document(file: UploadFile = File(...), style: str = Form(...)) 
     except HTTPException:
         _cleanup_staged_file(staged_path)
         raise
+    session.directory.mkdir(parents=True, exist_ok=True)
     async with _PROCESSING_LOCK:
         result = await asyncio.to_thread(pipeline.run, staged_path, config)
 
     if result.error_code == "CONFLICTING_STYLES":
         _PENDING_OVERWRITES[result.processing_id] = _PendingUpload(
-            staged_path=staged_path, original_filename=original_filename, style=format_style,
+            staged_path=staged_path, original_filename=original_filename, style=format_style, sid=session.sid,
         )
         return _result_payload(result, pending_id=result.processing_id)
 
-    store.save_processed_document(_storage_dir(), staged_path, original_filename, format_style, result)
+    store.save_processed_document(session.directory, staged_path, original_filename, format_style, result)
     _cleanup_staged_file(staged_path)
     return _result_payload(result)
 
 
 @router.post("/documents/{pending_id}/confirm-overwrite")
-async def confirm_overwrite(pending_id: str) -> dict:
+async def confirm_overwrite(pending_id: str, session: _Session = Depends(_session)) -> dict:
     """Confirma sobrescribir estilos conflictivos (seccion 7) y reintenta el pipeline."""
     _reject_if_busy()
-    pending = _PENDING_OVERWRITES.pop(pending_id, None)
-    if pending is None:
-        raise HTTPException(status_code=404, detail="No hay ninguna subida pendiente con ese id.")
+    pending = _take_pending(pending_id, session)
 
-    config = _build_config(pending.style)
+    config = _build_config(pending.style, session.directory)
+    session.directory.mkdir(parents=True, exist_ok=True)
 
     async with _PROCESSING_LOCK:
         result = await asyncio.to_thread(pipeline.run, pending.staged_path, config, overwrite_styles=True)
 
     store.save_processed_document(
-        _storage_dir(), pending.staged_path, pending.original_filename, pending.style, result,
+        session.directory, pending.staged_path, pending.original_filename, pending.style, result,
     )
     _cleanup_staged_file(pending.staged_path)
     return _result_payload(result)
 
 
 @router.post("/documents/{pending_id}/cancel-overwrite")
-def cancel_overwrite(pending_id: str) -> dict:
+def cancel_overwrite(pending_id: str, session: _Session = Depends(_session)) -> dict:
     """Cancela una subida pausada por conflicto de estilos, sin procesarla."""
-    pending = _PENDING_OVERWRITES.pop(pending_id, None)
-    if pending is None:
-        raise HTTPException(status_code=404, detail="No hay ninguna subida pendiente con ese id.")
+    pending = _take_pending(pending_id, session)
     _cleanup_staged_file(pending.staged_path)
     return {"cancelled": True}
 
 
+@router.post("/session/end")
+def end_session(session: _Session = Depends(_session)) -> dict:
+    """
+    La pagina se recarga o se cierra: borra los documentos de la sesion y sus subidas
+    pendientes. Lo llama el navegador con sendBeacon (best-effort); la limpieza por
+    inactividad (`sweep_expired`) cubre los casos en que el aviso no llega.
+    """
+    _drop_pending(lambda pending: pending.sid == session.sid)
+    deleted = sessions.delete_session(_storage_dir(), session.sid)
+    return {"ended": True, "deleted": deleted}
+
+
 @router.get("/documents")
-def list_documents() -> list[dict]:
-    return [_document_payload(doc) for doc in store.list_documents(_storage_dir())]
+def list_documents(session: _Session = Depends(_session)) -> list[dict]:
+    return [_document_payload(doc, session.directory) for doc in store.list_documents(session.directory)]
 
 
 @router.get("/documents/{processing_id}/download")
-def download_document(processing_id: str) -> FileResponse:
-    document = store.get_document(_storage_dir(), processing_id)
+def download_document(processing_id: str, session: _Session = Depends(_session)) -> FileResponse:
+    document = store.get_document(session.directory, processing_id)
     if document is None:
         raise HTTPException(status_code=404, detail="Documento no encontrado.")
-    output_path = document.output_path(_storage_dir())
+    output_path = document.output_path(session.directory)
     if output_path is None:
         raise HTTPException(status_code=404, detail="Este documento no tiene un resultado descargable.")
     download_name = f"{Path(document.original_filename).stem}_{document.style.value}.docx"
@@ -218,20 +271,58 @@ def download_document(processing_id: str) -> FileResponse:
 
 
 @router.get("/documents/{processing_id}/preview")
-def preview_document(processing_id: str) -> FileResponse:
-    document = store.get_document(_storage_dir(), processing_id)
+def preview_document(processing_id: str, session: _Session = Depends(_session)) -> FileResponse:
+    document = store.get_document(session.directory, processing_id)
     if document is None:
         raise HTTPException(status_code=404, detail="Documento no encontrado.")
-    preview_path = document.preview_path(_storage_dir())
+    preview_path = document.preview_path(session.directory)
     if preview_path is None:
         raise HTTPException(status_code=404, detail="Este documento no tiene vista previa disponible.")
     return FileResponse(preview_path, media_type="image/png")
 
 
+@router.get("/documents/{processing_id}/pdf")
+async def pdf_document(processing_id: str, session: _Session = Depends(_session)) -> FileResponse:
+    """
+    Vista previa completa del documento ya formateado, en PDF y para mostrar en linea.
+
+    Se genera bajo demanda con LibreOffice la primera vez y se guarda junto al .docx;
+    las aperturas siguientes sirven el archivo ya convertido.
+    """
+    storage_dir = session.directory
+    document = store.get_document(storage_dir, processing_id)
+    if document is None:
+        raise HTTPException(status_code=404, detail="Documento no encontrado.")
+    docx_path = document.output_path(storage_dir)
+    if docx_path is None:
+        raise HTTPException(status_code=404, detail="Este documento no tiene un resultado que previsualizar.")
+
+    async with _PDF_LOCK:
+        pdf_path = document.pdf_path(storage_dir)
+        if pdf_path is None:
+            target = document.pdf_target(storage_dir)
+            try:
+                await asyncio.to_thread(render_pdf, docx_path, target, _libreoffice_bin())
+            except PreviewRenderError as exc:
+                logger.warning("[PDF] Fallo al generar la vista previa de %s: %s", processing_id, exc.details)
+                raise HTTPException(
+                    status_code=503,
+                    detail="No se pudo generar la vista previa en PDF. Puedes descargar el .docx igualmente.",
+                ) from exc
+            pdf_path = target
+
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=f"{Path(document.original_filename).stem}_{document.style.value}.pdf",
+        content_disposition_type="inline",
+    )
+
+
 @router.delete("/documents/{processing_id}")
-def delete_document(processing_id: str) -> dict:
+def delete_document(processing_id: str, session: _Session = Depends(_session)) -> dict:
     """Elimina un documento (seccion 9: boton de eliminacion individual)."""
-    deleted = store.delete_document(_storage_dir(), processing_id)
+    deleted = store.delete_document(session.directory, processing_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Documento no encontrado.")
     return {"deleted": True}
@@ -240,6 +331,30 @@ def delete_document(processing_id: str) -> dict:
 # ===========================================================================
 # Helpers
 # ===========================================================================
+
+def _take_pending(pending_id: str, session: _Session) -> _PendingUpload:
+    """Saca una subida pendiente de la sesion; las de otra sesion se tratan como inexistentes."""
+    pending = _PENDING_OVERWRITES.get(pending_id)
+    if pending is None or pending.sid != session.sid:
+        raise HTTPException(status_code=404, detail="No hay ninguna subida pendiente con ese id.")
+    return _PENDING_OVERWRITES.pop(pending_id)
+
+
+def _drop_pending(should_drop) -> None:
+    for pending_id in [pid for pid, pending in _PENDING_OVERWRITES.items() if should_drop(pending)]:
+        _cleanup_staged_file(_PENDING_OVERWRITES.pop(pending_id).staged_path)
+
+
+def sweep_expired() -> int:
+    """
+    Elimina las sesiones sin actividad (y sus subidas pendientes) pasado el tiempo de
+    caducidad. Lo ejecuta main.py al arrancar y cada pocos minutos.
+    """
+    ttl = _session_ttl_seconds()
+    now = time.monotonic()
+    _drop_pending(lambda pending: now - pending.created > ttl)
+    return sessions.purge_expired(_storage_dir(), ttl)
+
 
 def _reject_if_busy() -> None:
     """Un documento a la vez: mientras hay uno en proceso no se acepta otro (no se encola)."""
@@ -269,8 +384,7 @@ def _result_payload(result: ProcessingResult, pending_id: str | None = None) -> 
     return payload
 
 
-def _document_payload(document: store.StoredDocument) -> dict:
-    storage_dir = _storage_dir()
+def _document_payload(document: store.StoredDocument, storage_dir: Path) -> dict:
     return {
         "processing_id": document.processing_id,
         "original_filename": document.original_filename,
