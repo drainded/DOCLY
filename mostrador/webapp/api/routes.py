@@ -4,6 +4,7 @@ webapp/api/routes.py
 Endpoints HTTP del panel de Mostrador (seccion 2):
   POST   /api/upload
   POST   /api/session/end
+  GET    /api/limits
   POST   /api/documents/{pending_id}/confirm-overwrite
   POST   /api/documents/{pending_id}/cancel-overwrite
   GET    /api/documents
@@ -56,15 +57,15 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from engine.core import pipeline
 from engine.core.exceptions import PreviewRenderError
 from engine.document import store
-from engine.document.models import FormatStyle, ProcessingConfig, ProcessingResult
+from engine.document.models import DEFAULT_MAX_FILE_SIZE_BYTES, FormatStyle, ProcessingConfig, ProcessingResult
 from engine.formatting.pdf_renderer import render_pdf
-from webapp.api import sessions
+from webapp.api import limits, sessions
 from webapp.config import MissingAPIKeyError, load_processing_config
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,42 @@ _PENDING_OVERWRITES: dict[str, _PendingUpload] = {}
 
 def _storage_dir() -> Path:
     return Path(os.environ.get("MOSTRADOR_STORAGE_DIR", "storage")).resolve()
+
+
+def _daily_limit() -> int:
+    """Documentos por IP y dia (0 = sin limite). Ver webapp/api/limits.py."""
+    return int(os.environ.get("MOSTRADOR_DAILY_LIMIT", limits.DEFAULT_DAILY_LIMIT))
+
+
+def _trusted_proxy_hops() -> int | str:
+    return limits.parse_trusted_hops(os.environ.get("MOSTRADOR_TRUSTED_PROXY_HOPS", "0"))
+
+
+def _client_ip_header() -> str:
+    """Cabecera que el proxy de confianza rellena con la IP real (p. ej. cf-connecting-ip); vacia = ninguna."""
+    return os.environ.get("MOSTRADOR_CLIENT_IP_HEADER", "").strip().lower()
+
+
+def _client_ip(request: Request) -> str:
+    return limits.client_ip(request, _trusted_proxy_hops(), _client_ip_header())
+
+
+def _max_file_bytes() -> int:
+    return int(os.environ.get("MAX_FILE_SIZE_BYTES", DEFAULT_MAX_FILE_SIZE_BYTES))
+
+
+_LIMITER = limits.DailyLimiter(_daily_limit)
+
+
+def _enforce_daily_limit(ip: str) -> None:
+    if _LIMITER.is_exhausted(ip):
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Alcanzaste el límite de {_LIMITER.limit} documentos por día. "
+                "Vuelve mañana: el contador se reinicia a las 00:00 UTC."
+            ),
+        )
 
 
 def _session_ttl_seconds() -> float:
@@ -178,9 +215,12 @@ def _parse_style(style: str) -> FormatStyle:
 
 @router.post("/upload")
 async def upload_document(
+    request: Request,
     file: UploadFile = File(...), style: str = Form(...), session: _Session = Depends(_session),
 ) -> dict:
     """Sube un documento y lo procesa (seccion 2)."""
+    ip = _client_ip(request)
+    _enforce_daily_limit(ip)
     format_style = _parse_style(style)
     original_filename = _safe_filename(file.filename)
     config = _build_config(format_style, session.directory)
@@ -205,14 +245,18 @@ async def upload_document(
         )
         return _result_payload(result, pending_id=result.processing_id)
 
+    if result.success:
+        _LIMITER.record(ip)
     store.save_processed_document(session.directory, staged_path, original_filename, format_style, result)
     _cleanup_staged_file(staged_path)
     return _result_payload(result)
 
 
 @router.post("/documents/{pending_id}/confirm-overwrite")
-async def confirm_overwrite(pending_id: str, session: _Session = Depends(_session)) -> dict:
+async def confirm_overwrite(request: Request, pending_id: str, session: _Session = Depends(_session)) -> dict:
     """Confirma sobrescribir estilos conflictivos (seccion 7) y reintenta el pipeline."""
+    ip = _client_ip(request)
+    _enforce_daily_limit(ip)
     _reject_if_busy()
     pending = _take_pending(pending_id, session)
 
@@ -222,6 +266,8 @@ async def confirm_overwrite(pending_id: str, session: _Session = Depends(_sessio
     async with _PROCESSING_LOCK:
         result = await asyncio.to_thread(pipeline.run, pending.staged_path, config, overwrite_styles=True)
 
+    if result.success:
+        _LIMITER.record(ip)
     store.save_processed_document(
         session.directory, pending.staged_path, pending.original_filename, pending.style, result,
     )
@@ -247,6 +293,18 @@ def end_session(session: _Session = Depends(_session)) -> dict:
     _drop_pending(lambda pending: pending.sid == session.sid)
     deleted = sessions.delete_session(_storage_dir(), session.sid)
     return {"ended": True, "deleted": deleted}
+
+
+@router.get("/limits")
+def usage_limits(request: Request) -> dict:
+    """Limites que ve el panel: documentos que le quedan hoy a este visitante y tamano maximo."""
+    ip = _client_ip(request)
+    remaining = _LIMITER.remaining(ip)
+    return {
+        "daily_limit": _LIMITER.limit if remaining is not None else None,
+        "remaining": remaining,
+        "max_file_mb": round(_max_file_bytes() / 1_048_576, 1),
+    }
 
 
 @router.get("/documents")
@@ -302,7 +360,10 @@ async def pdf_document(processing_id: str, session: _Session = Depends(_session)
         if pdf_path is None:
             target = document.pdf_target(storage_dir)
             try:
-                await asyncio.to_thread(render_pdf, docx_path, target, _libreoffice_bin())
+                # Mismo bloqueo que el pipeline: LibreOffice pesa y un hosting gratuito tiene poca
+                # RAM, asi que nunca corren dos instancias a la vez (esto espera si hay un proceso).
+                async with _PROCESSING_LOCK:
+                    await asyncio.to_thread(render_pdf, docx_path, target, _libreoffice_bin())
             except PreviewRenderError as exc:
                 logger.warning("[PDF] Fallo al generar la vista previa de %s: %s", processing_id, exc.details)
                 raise HTTPException(

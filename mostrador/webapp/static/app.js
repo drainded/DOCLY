@@ -43,6 +43,8 @@ const formFields = document.getElementById("form-fields");
 const fileInput = document.getElementById("file-input");
 const submitBtn = document.getElementById("submit-btn");
 const submitLabel = document.getElementById("submit-label");
+const usageEl = document.getElementById("usage");
+const maxSizeEl = document.getElementById("max-size");
 const statusBox = document.getElementById("status-box");
 const conflictDialog = document.getElementById("conflict-dialog");
 const confirmOverwriteBtn = document.getElementById("confirm-overwrite-btn");
@@ -73,6 +75,7 @@ let elapsedTimer = null;
 let lastSubmission = { name: "", style: "" }; // para rotular el resultado si el historial no lo trae
 let resultId = null;
 let resultStyle = "";
+let usageExhausted = false; // el visitante agoto su cupo diario de documentos
 
 function stopElapsed() {
   statusRain.stop();
@@ -138,6 +141,7 @@ function refreshLock() {
   formFields.disabled = busy || pendingId !== null;
   form.setAttribute("aria-busy", String(busy));
   submitBtn.classList.toggle("busy", busy);
+  submitBtn.disabled = usageExhausted;
   submitLabel.textContent = busy ? "Procesando..." : "Procesar documento";
   // Con un documento adjuntado y el formulario libre, las letras del boton llevan el arcoiris continuo.
   submitBtn.classList.toggle("ready", !busy && pendingId === null && fileInput.files.length > 0);
@@ -185,6 +189,45 @@ async function parseJsonOrThrow(response) {
   }
   return body;
 }
+
+// Cupo diario y tamano maximo (GET /api/limits): lo decide el servidor, el panel solo lo muestra.
+function renderLimits(limits) {
+  maxSizeEl.textContent = `${limits.max_file_mb} MB`;
+  usageExhausted = limits.remaining === 0;
+  usageEl.classList.toggle("exhausted", usageExhausted);
+  if (limits.remaining === null) usageEl.textContent = "";
+  else if (usageExhausted) usageEl.textContent = `Alcanzaste el límite de ${limits.daily_limit} documentos por día. Vuelve mañana.`;
+  else {
+    const verb = limits.remaining === 1 ? "queda" : "quedan";
+    usageEl.textContent = `Hoy te ${verb} ${limits.remaining} de ${limits.daily_limit} documentos.`;
+  }
+  refreshLock();
+}
+
+async function loadLimits() {
+  try {
+    const response = await fetch("/api/limits");
+    if (response.ok) renderLimits(await response.json());
+  } catch (_) {
+    // sin red o servidor dormido: el panel funciona igual y el servidor aplica el limite
+  }
+}
+
+// Servidor dormido (splash.js no recibio respuesta a tiempo): el primer clic avisa de que la primera
+// accion puede tardar; el aviso se retira solo cuando el servidor despierta.
+const WAKE_MESSAGE = "El servidor estaba dormido y está despertando. La primera acción puede tardar hasta un minuto.";
+document.addEventListener(
+  "click",
+  () => {
+    if (window.serverState.awake || busy) return;
+    setStatus("info", WAKE_MESSAGE);
+    window.serverState.whenAwake(() => {
+      if (statusBox.textContent === WAKE_MESSAGE) setStatus("", "");
+      loadLimits();
+    });
+  },
+  { capture: true, once: true },
+);
 
 function hideResult() {
   resultSection.hidden = true;
@@ -239,6 +282,7 @@ function handleProcessingResult(result) {
   conflictDialog.classList.remove("visible");
   pendingId = null;
   refreshLock();
+  loadLimits();
 
   if (result.success) {
     setStatus("", "");
@@ -540,4 +584,5 @@ document.addEventListener("focusin", (event) => {
   }
 });
 
+loadLimits();
 loadDocuments();

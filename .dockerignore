@@ -1,0 +1,26 @@
+# Fuera de la imagen: secretos, datos de usuario, entornos y material de desarrollo.
+.env
+.git
+.gitignore
+.venv/
+.claude/
+.vscode/
+.impeccable/
+storage/
+output/
+real_runs/
+documentos prueba/
+APA documents examples/
+logos/
+
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+
+# Los tests y las herramientas manuales no se ejecutan en produccion.
+mostrador/tests/
+mostrador/tools/
+
+*.md
+Dockerfile
+.dockerignore

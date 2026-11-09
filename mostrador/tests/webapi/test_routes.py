@@ -36,6 +36,8 @@ def storage(tmp_path, monkeypatch):
     staging.mkdir()
     monkeypatch.setattr(tempfile, "tempdir", str(staging))  # mkdtemp de las subidas
     routes._PENDING_OVERWRITES.clear()
+    monkeypatch.setenv("MOSTRADOR_DAILY_LIMIT", "0")  # estos tests no prueban el limite (ver test_limits.py)
+    routes._LIMITER.reset()
     return directory
 
 
@@ -391,3 +393,19 @@ def test_sweep_expired_removes_idle_sessions_and_stale_pending_uploads(storage, 
     assert routes.sweep_expired() == 1
     assert not storage.exists()
     assert routes._PENDING_OVERWRITES == {}
+
+
+def test_pdf_conversion_runs_under_the_processing_lock(storage, client, monkeypatch):
+    """LibreOffice pesa: la conversion a PDF nunca corre a la vez que el pipeline u otra conversion."""
+    uploaded = _upload_ok(client, monkeypatch)
+    held = []
+
+    def render(docx_path, output_path, libreoffice_bin):
+        held.append(routes._PROCESSING_LOCK.locked())
+        output_path.write_bytes(b"%PDF-1.7 falso")
+
+    monkeypatch.setattr(routes, "render_pdf", render)
+
+    assert client.get(f"/api/documents/{uploaded['processing_id']}/pdf").status_code == 200
+    assert held == [True]
+    assert routes._PROCESSING_LOCK.locked() is False  # y se libera al terminar

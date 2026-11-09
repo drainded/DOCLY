@@ -1,0 +1,15 @@
+# Blueprint de Render (https://docs.render.com/blueprint-spec): crea el servicio web gratuito a partir del Dockerfile.
+# Las claves se piden en el panel de Render al aplicar el Blueprint (sync: false): no se guardan en el repositorio.
+services:
+  - type: web
+    name: docly
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false

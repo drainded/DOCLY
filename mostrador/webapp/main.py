@@ -18,6 +18,9 @@ GEMINI_API_KEY        (obligatoria)  credencial de Gemini (Paso 3, seccion 3)
 GROQ_API_KEY          (opcional)     fallback ante rate limit (seccion 9)
 MOSTRADOR_STORAGE_DIR (opcional)     directorio de almacenamiento (seccion 9); default "./storage"
 MOSTRADOR_SESSION_TTL_MINUTES (opcional) inactividad tras la que se borra una sesion; default 60
+MOSTRADOR_DAILY_LIMIT (opcional)     documentos por IP y dia (0 = sin limite); default 3
+MOSTRADOR_TRUSTED_PROXY_HOPS (opcional) IP real tras un proxy: numero de proxies o "auto"; default 0
+MOSTRADOR_CLIENT_IP_HEADER (opcional) cabecera de IP real que sobrescribe el proxy (cf-connecting-ip); default ninguna
 LIBREOFFICE_BIN       (opcional)     binario de LibreOffice headless; default "libreoffice"
 MAX_FILE_SIZE_BYTES   (opcional)     limite de tamano de archivo; default 50 MB (seccion 3)
 
@@ -68,6 +71,12 @@ app.include_router(router, prefix="/api")
 
 _STATIC_DIR = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
+
+
+@app.get("/health", include_in_schema=False)
+def health() -> dict:
+    """Respuesta inmediata para el aviso de arranque del panel y las comprobaciones del hosting."""
+    return {"status": "ok"}
 
 
 @app.get("/", include_in_schema=False)

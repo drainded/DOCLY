@@ -1264,3 +1264,99 @@ button.secondary.large {
   line-height: 1.5;
   color: var(--text-muted);
 }
+
+
+/* Pantalla de carga de inicio (splash.js): logo multicolor y porcentaje sobre negro. Solo existe
+   mientras la clase splash-on esta en <html>; sin JavaScript no se muestra. */
+#splash {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 24px;
+  background: #000;
+  color: #fff;
+  transition: opacity 0.35s ease;
+}
+
+html.splash-on {
+  overflow: hidden;
+}
+
+html.splash-on #splash {
+  display: flex;
+}
+
+#splash.leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-logo {
+  height: clamp(3rem, 9vw, 5rem);
+  margin: 0;
+}
+
+.splash-logo::before {
+  opacity: 1;
+  animation: logo-rainbow 2.4s linear infinite;
+}
+
+.splash-pct {
+  margin: 0;
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.splash-bar {
+  width: min(260px, 60vw);
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.splash-bar span {
+  display: block;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: linear-gradient(90deg, #ff2d55, #ff9500, #ffe600, #34c759, #00c7ff, #5e5ce6, #bf5af2);
+}
+
+.splash-msg {
+  min-height: 1.2em;
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-logo::before {
+    animation: none;
+  }
+
+  #splash {
+    transition: none;
+  }
+}
+
+/* Cupo diario bajo el boton de procesar. */
+.usage {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.usage:empty {
+  display: none;
+}
+
+.usage.exhausted {
+  color: var(--danger);
+}
